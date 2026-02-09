@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Account</title>
+  <link rel="stylesheet" href="/assets/auth.css" />
+</head>
+
+<body>
+
+  <!-- Divine Flute -->
+  <img
+    src="/assets/divineflute.png"
+    alt="Krishna Flute"
+    class="divine-flute"
+  />
+
+  <div class="auth-container">
+    <h2>Begin Your Journey ✨</h2>
+
+    <input type="text" id="username" placeholder="Choose a username" />
+    <input type="password" id="password" placeholder="Create a password" />
+
+    <!-- Optional Room -->
+    <input
+      type="text"
+      id="room-code"
+      placeholder="Sacred Room Code (optional)"
+      maxlength="4"
+      inputmode="numeric"
+    />
+
+    <button id="signup-btn">Create Account</button>
+
+    <p>
+      Already part of the circle?
+      <a href="/login.html">Login</a>
+    </p>
+  </div>
+
+  <script src="/signup.js"></script>
+</body>
+</html>

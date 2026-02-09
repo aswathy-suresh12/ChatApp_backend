@@ -1,0 +1,316 @@
+/* =========================
+   RESET & BASE
+========================= */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Poppins", sans-serif;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+}
+
+/* =========================
+   PAGE BACKGROUND
+========================= */
+body {
+  min-height: 100vh;
+  background: url("../assets/bg.jpeg") no-repeat center center / cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Soft ambient glow over background */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 25% 30%, rgba(120,150,255,0.14), transparent 45%),
+    radial-gradient(circle at 75% 70%, rgba(160,130,255,0.12), transparent 50%);
+  animation: ambientDrift 22s ease-in-out infinite alternate;
+}
+
+@keyframes ambientDrift {
+  from {
+    transform: translateY(0) scale(1);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateY(-24px) scale(1.05);
+    opacity: 0.9;
+  }
+}
+
+/* =========================
+   AUTH CARD
+========================= */
+.auth-container {
+  width: 100%;
+  max-width: 420px;
+  padding: 42px 36px;
+  border-radius: 22px;
+
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,0.20),
+    rgba(255,255,255,0.08)
+  );
+
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+
+  color: #ffffff;
+  text-align: center;
+
+  box-shadow:
+    0 28px 70px rgba(0,0,0,0.5),
+    inset 0 1px 0 rgba(255,255,255,0.25);
+
+  position: relative;
+  transform-style: preserve-3d;
+
+  animation: cardEnter 0.6s ease,
+             cardFloat 9s ease-in-out infinite;
+}
+
+@keyframes cardEnter {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes cardFloat {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+/* =========================
+   CARD HALO GLOW
+========================= */
+.auth-container::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  background: linear-gradient(
+    120deg,
+    rgba(130,160,255,0.35),
+    rgba(170,140,255,0.25),
+    rgba(130,160,255,0.35)
+  );
+  filter: blur(26px);
+  opacity: 0.35;
+  z-index: -1;
+  animation: haloPulse 7s ease-in-out infinite;
+}
+
+@keyframes haloPulse {
+  0%, 100% {
+    opacity: 0.25;
+    transform: scale(0.97);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(1.03);
+  }
+}
+
+/* =========================
+   TEXT
+========================= */
+.auth-container h2 {
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 26px;
+  letter-spacing: 0.4px;
+}
+
+.auth-container p {
+  margin-top: 18px;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+/* =========================
+   INPUTS
+========================= */
+.auth-container input {
+  width: 100%;
+  padding: 15px 16px;
+  margin-bottom: 16px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: rgba(255,255,255,0.92);
+  font-size: 15px;
+  outline: none;
+  transition: all 0.25s ease;
+}
+
+.auth-container input:focus {
+  border-color: #7f8cff;
+  box-shadow:
+    0 0 0 4px rgba(127,140,255,0.28),
+    0 0 20px rgba(140,160,255,0.35);
+}
+
+/* =========================
+   BUTTON
+========================= */
+.auth-container button {
+  width: 100%;
+  padding: 15px;
+  border-radius: 14px;
+  border: none;
+
+  background: linear-gradient(135deg, #6a85ff, #9f6bff);
+  color: #ffffff;
+
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+
+  box-shadow: 0 12px 28px rgba(106,133,255,0.45);
+  transition: all 0.25s ease;
+}
+
+.auth-container button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 40px rgba(106,133,255,0.65);
+}
+
+.auth-container button:active {
+  transform: translateY(0);
+}
+
+/* =========================
+   LINKS
+========================= */
+.auth-container a {
+  color: #ffe082;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.auth-container a:hover {
+  text-decoration: underline;
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+@media (max-width: 480px) {
+  .auth-container {
+    padding: 34px 26px;
+    border-radius: 20px;
+  }
+
+  .auth-container h2 {
+    font-size: 24px;
+  }
+
+  .auth-container input,
+  .auth-container button {
+    min-height: 56px;
+    font-size: 16px;
+  }
+}
+/* =========================
+   DIVINE FLUTE
+========================= */
+.divine-flute {
+  position: fixed;
+  top: 55%;
+  left: 50%;
+  width: 150px;
+  pointer-events: none;
+  z-index: 1;
+
+  transform: translate(-50%, -50%);
+  transition: transform 0.25s ease-out;
+
+  filter:
+    drop-shadow(0 0 18px rgba(255, 200, 80, 0.65))
+    drop-shadow(0 0 40px rgba(255, 180, 60, 0.35));
+
+  animation: fluteGlow 6s ease-in-out infinite;
+}
+
+
+/* Soft breathing glow */
+@keyframes fluteGlow {
+  0%, 100% {
+    filter:
+      drop-shadow(0 0 14px rgba(120,160,255,0.45))
+      drop-shadow(0 0 30px rgba(170,140,255,0.25));
+  }
+  50% {
+    filter:
+      drop-shadow(0 0 22px rgba(140,180,255,0.75))
+      drop-shadow(0 0 50px rgba(190,160,255,0.45));
+  }
+}
+
+.divine-flute {
+  animation: fluteGlow 6s ease-in-out infinite;
+}
+
+/* Hide on mobile */
+@media (max-width: 768px) {
+  .divine-flute {
+    display: none;
+  }
+}
+/* =========================
+   GOLDEN DIVINE PARTICLES
+========================= */
+.divine-particle {
+  position: fixed;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  pointer-events: none;
+
+  z-index: 2; /* ABOVE background, BELOW card */
+
+  background: radial-gradient(
+    circle,
+    rgba(255, 230, 160, 1),
+    rgba(255, 190, 90, 0.8),
+    rgba(255, 160, 60, 0.3),
+    transparent 70%
+  );
+
+  filter: blur(0.8px);
+  animation: divineTrail 1.6s ease-out forwards;
+}
+
+@keyframes divineTrail {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  70% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(90px) scale(0.2);
+    opacity: 0;
+  }
+}
