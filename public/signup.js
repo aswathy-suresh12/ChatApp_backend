@@ -1,8 +1,10 @@
 document.addEventListener("DOMContentLoaded", () => {
-  const btn = document.getElementById("signup-btn");
-  if (!btn) return;
+  const form = document.getElementById("signup-form");
+  if (!form) return;
 
-  btn.addEventListener("click", async () => {
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
     const username = document.getElementById("username").value.trim();
     const password = document.getElementById("password").value;
     const roomCodeInput = document.getElementById("room-code");
@@ -15,7 +17,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const payload = { username, password };
 
-    // ✅ only send room_code if user entered it
     if (room_code) {
       payload.room_code = room_code;
     }
@@ -42,6 +43,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 });
+
 // =========================
 // DIVINE FLUTE – FREE LIVING MOTION
 // =========================

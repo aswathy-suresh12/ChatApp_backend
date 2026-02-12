@@ -1,8 +1,10 @@
 document.addEventListener("DOMContentLoaded", () => {
-  const btn = document.getElementById("login-btn");
-  if (!btn) return;
+  const form = document.getElementById("login-form");
+  if (!form) return;
 
-  btn.addEventListener("click", async () => {
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
     const username = document.getElementById("username").value.trim();
     const password = document.getElementById("password").value;
 
@@ -20,7 +22,7 @@ document.addEventListener("DOMContentLoaded", () => {
       localStorage.setItem("token", data.token);
       localStorage.setItem("user_id", data.user_id);
       localStorage.setItem("username", data.username);
-      localStorage.setItem("room_id", data.room_id); 
+      localStorage.setItem("room_id", data.room_id);
 
       window.location.href = "/index.html";
     } catch (err) {
@@ -28,6 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 });
+
 // =========================
 // START MUSIC ON USERNAME CLICK (BROWSER-SAFE)
 // =========================

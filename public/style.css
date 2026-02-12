@@ -677,7 +677,7 @@ li.replying.test-highlight {
     opacity: 0;
     transform: translate(var(--x, 0px), var(--y, 50px)) scale(0.2);
   }
-
+}
   /*new button niggger*/
   .action-btn {
   width: 48px;
