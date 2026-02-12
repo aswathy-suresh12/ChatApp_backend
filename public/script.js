@@ -794,38 +794,21 @@ let roomCode = null;
 
 // Ask server for current room status
 function refreshRoomCode() {
-  socket.emit("check room", null, async (roomStatus) => {
-    // roomStatus = { filled, code }
-    if (roomStatus.filled) {
+  socket.emit("check room", null, (roomStatus) => {
+
+    // If server says no code → hide button
+    if (!roomStatus.code) {
       roomCodeBtn.style.display = "none";
       return;
     }
 
-    // If code already exists → show it
-    if (roomStatus.code) {
-      roomCode = roomStatus.code;
-      roomCodeBtn.style.display = "flex";
-      roomCodeBtn.textContent = `🆔 Room Code: ${roomCode}`;
-    } else {
-      // No code yet → generate one
-      try {
-        const res = await fetch("/generate-room-code", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id })
-        });
-
-        const data = await res.json();
-        roomCode = data.room_code;
-
-        roomCodeBtn.style.display = "flex";
-        roomCodeBtn.textContent = `🆔 Room Code: ${roomCode}`;
-      } catch (err) {
-        console.error("Room code generation failed", err);
-      }
-    }
+    // Only user_1 & not filled will get code
+    roomCode = roomStatus.code;
+    roomCodeBtn.style.display = "flex";
+    roomCodeBtn.textContent = `🆔 Room Code: ${roomCode}`;
   });
 }
+
 
 // Run once on load
 refreshRoomCode();

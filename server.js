@@ -327,7 +327,7 @@ const username = userRes.rows[0].username;
 socket.on("check room", async (_, callback) => {
   try {
     const roomRes = await pool.query(
-      "SELECT room_code, user_2_id FROM rooms WHERE user_1_id=$1 OR user_2_id=$1",
+      "SELECT room_code, user_1_id, user_2_id FROM rooms WHERE user_1_id=$1 OR user_2_id=$1",
       [socket.user_id]
     );
 
@@ -337,10 +337,16 @@ socket.on("check room", async (_, callback) => {
 
     const room = roomRes.rows[0];
 
-    // ✅ DB is source of truth
     const filled = !!room.user_2_id;
 
-    callback({ filled, code: room.room_code });
+    // ✅ Only room owner (user_1) can see code
+    if (room.user_1_id === socket.user_id && !filled) {
+      return callback({ filled, code: room.room_code });
+    }
+
+    // ❌ user_2 should never see code
+    return callback({ filled: true, code: null });
+
   } catch (err) {
     console.error("Room code check failed:", err);
     callback({ filled: true, code: null });
