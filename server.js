@@ -277,10 +277,21 @@ io.on("connection", async (socket) => {
   roomSockets.get(roomId).add(userId);
 
   // Load previous messages
-  const messages = await pool.query(
-    "SELECT * FROM messages WHERE room_id=$1 ORDER BY timestamp ASC",
-    [roomId]
-  );
+const messages = await pool.query(
+  `
+  SELECT 
+    m.message_id,
+    m.message_content,
+    m.timestamp,
+    m.sender_id,
+    u.username AS sender_username
+  FROM messages m
+  JOIN users u ON m.sender_id = u.user_id
+  WHERE m.room_id = $1
+  ORDER BY m.timestamp ASC
+  `,
+  [roomId]
+);
   socket.emit("joined_room", { room_id: roomId, messages: messages.rows });
 
 // --- inside connection, after user joins room ---

@@ -16,21 +16,18 @@ socket.on("connect", () => {
 socket.on("connect_error", err => {
   console.error("❌ Socket auth error:", err.message);
 });
-
-
 document.addEventListener("DOMContentLoaded", () => {
 
-  const token = localStorage.getItem("token");
-const user_id = localStorage.getItem("user_id");
-const username = localStorage.getItem("username");
+  const userId = localStorage.getItem("user_id");
+  const username = localStorage.getItem("username");
 
-if (!token || !user_id || !username) {
-  window.location.href = "/login.html"; // redirect to login page
-} else {
+  if (!userId || !username) {
+    window.location.href = "/login.html";
+    return;
+  }
+
   document.querySelector(".header-container").style.display = "block";
   document.querySelector(".chat-container").style.display = "flex";
-}
-
 
   /* ==========================
      Elements & globals
@@ -190,6 +187,28 @@ if (!token || !user_id || !username) {
       usersList.appendChild(li);
     });
   }
+// LOAD PREVIOUS MESSAGES
+socket.on("joined_room", (data) => {
+  if (!data.messages) return;
+
+  messages.innerHTML = "";
+
+  data.messages.forEach(msg => {
+
+    const isOwn = msg.sender_id == Number(userId);
+
+    const formatted = {
+      user: isOwn ? username : msg.sender_username,
+      text: msg.message_content,
+      id: msg.message_id,
+      ts: msg.timestamp
+    };
+
+    appendMessage(formatted, isOwn ? "sent" : "received");
+  });
+
+  messages.scrollTop = messages.scrollHeight;
+});
   /* ==========================
      Append message (handles replies)
      ========================== */
