@@ -1,22 +1,11 @@
-/* ═══════════════════════════════════════════════════════
-   signup.js — enhanced with engine modules
-═══════════════════════════════════════════════════════ */
-
 document.addEventListener("DOMContentLoaded", () => {
-
-  /* ── Boot shared engine ─────────────────────────────── */
   bootAuthEngine();
-
-  /* ── Signup form ────────────────────────────────────── */
   const form      = document.getElementById("signup-form");
   const signupBtn = document.getElementById("signup-btn");
   if (!form) return;
-
   signupBtn.addEventListener("click", (e) => {
     AuthUI.addRipple(signupBtn, e);
   });
-
-  /* Start particle burst on first focus — no music on signup page */
   document.querySelectorAll("input").forEach(inp => {
     inp.addEventListener("focus", () => {
       const rect = inp.getBoundingClientRect();
@@ -26,12 +15,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-
     const username      = document.getElementById("username").value.trim();
     const password      = document.getElementById("password").value;
     const roomCodeInput = document.getElementById("room-code");
     const room_code     = roomCodeInput?.value.trim();
-
     if (!username || !password) {
       AuthUI.showError("Please fill in your username and password.");
       return;
@@ -44,7 +31,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const payload = { username, password };
     if (room_code) payload.room_code = room_code;
-
     AuthUI.setLoading(signupBtn, true);
 
     try {
@@ -62,12 +48,10 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       const data = await res.json();
-
       localStorage.setItem("token",    data.token);
       localStorage.setItem("user_id",  data.user_id);
       localStorage.setItem("username", data.username);
       localStorage.setItem("room_id",  data.room_id);
-
       AuthUI.setLoading(signupBtn, false);
       AuthUI.successTransition("/index.html");
 
