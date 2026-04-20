@@ -8,19 +8,11 @@
 </head>
 <body>
 
-  <!-- Page fade overlay -->
   <div id="page-fade"></div>
-
-  <!-- Canvas for ambient particles -->
   <canvas id="particle-canvas"></canvas>
-
-  <!-- Divine Flute -->
   <img src="/assets/divineflute.png" alt="Krishna Flute" class="divine-flute" />
-
-  <!-- Auth Card -->
   <div class="auth-container">
     <h2>Begin Your Journey ✨</h2>
-
     <form id="signup-form" autocomplete="off">
       <input type="text"     id="username"  placeholder="Choose a username" autocomplete="username" />
       <input type="password" id="password"  placeholder="Create a password" autocomplete="new-password" />
@@ -33,14 +25,9 @@
       />
       <button type="submit" id="signup-btn">Create Account</button>
     </form>
-
     <p>Already part of the circle? <a href="/login.html">Login</a></p>
   </div>
-
-  <!-- Engine (shared) -->
 <script src="./authEngine.js"></script>
-  <!-- Page-specific logic -->
   <script src="/signup.js"></script>
-
 </body>
 </html>
