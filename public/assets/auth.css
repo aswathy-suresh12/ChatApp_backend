@@ -438,16 +438,24 @@ body {
 @media (max-width: 480px) {
 body {
   align-items: flex-end;
+  min-height: 100dvh;
+  padding-bottom: env(safe-area-inset-bottom);
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
   animation: none;
 }
 
+@media (max-width: 480px) {
+  html, body {
+    height: 100%;
+    overflow: hidden;
+  }
+}
   .auth-container {
     width: 100%;
     max-width: 100%;
-    padding: 40px 26px max(46px, env(safe-area-inset-bottom));
+    padding: 40px 26px calc(46px + env(safe-area-inset-bottom));
     border-radius: 36px 36px 0 0;
 
     background: linear-gradient(
@@ -455,6 +463,7 @@ body {
       rgba(22, 18, 48, 0.96),
       rgba(12, 10, 28, 0.98)
     );
+    
 
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
