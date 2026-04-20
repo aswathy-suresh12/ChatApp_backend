@@ -2,40 +2,43 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Login — Secretchats</title>
   <link rel="stylesheet" href="/assets/auth.css" />
 </head>
-
 <body>
 
+  <!-- Page fade overlay (for transitions) -->
+  <div id="page-fade"></div>
+
+  <!-- Canvas for ambient particles -->
+  <canvas id="particle-canvas"></canvas>
+
   <!-- Divine Flute -->
-<img
-  src="/assets/divineflute.png"
-  alt="Krishna Flute"
-  class="divine-flute"
-/>
+  <img src="/assets/divineflute.png" alt="Krishna Flute" class="divine-flute" />
 
-
+  <!-- Auth Card -->
   <div class="auth-container">
-    <h2>Welcome Back 👋</h2>
+    <h2>Welcome Back ✨</h2>
 
-   <form id="login-form">
-  <input type="text" id="username" placeholder="Username" />
-  <input type="password" id="password" placeholder="Password" />
-  <button type="submit" id="login-btn">Login Now</button>
-</form>
+    <form id="login-form" autocomplete="off">
+      <input type="text"     id="username" placeholder="Username"  autocomplete="username" />
+      <input type="password" id="password" placeholder="Password"  autocomplete="current-password" />
+      <button type="submit"  id="login-btn">Login Now</button>
+    </form>
 
-    <p>Don't have an account?
-      <a href="/signup.html">Sign up</a>
-    </p>
+    <p>Don't have an account? <a href="/signup.html">Sign up</a></p>
   </div>
 
-  <script src="/login.js"></script>
-<audio id="bg-music" loop preload="auto">
-  <source src="/assets/divine.mp3" type="audio/mpeg">
-</audio>
+  <!-- Background music -->
+  <audio id="bg-music" loop preload="auto">
+    <source src="/assets/divine.mp3" type="audio/mpeg">
+  </audio>
 
+  <!-- Engine (shared) — load first -->
+<script src="./authEngine.js"></script>
+  <!-- Page-specific logic -->
+  <script src="/login.js"></script>
 
 </body>
 </html>
