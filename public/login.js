@@ -1,25 +1,13 @@
-/* ═══════════════════════════════════════════════════════
-   login.js — enhanced with engine modules
-═══════════════════════════════════════════════════════ */
-
 document.addEventListener("DOMContentLoaded", () => {
-
-  /* ── Boot shared engine ─────────────────────────────── */
   bootAuthEngine();
-
-  /* ── Music init ─────────────────────────────────────── */
   const bgMusic = document.getElementById("bg-music");
   if (bgMusic) MusicController.init(bgMusic);
-
-  /* Start music on first input interaction */
   const firstInput = document.getElementById("username");
   if (firstInput) {
     firstInput.addEventListener("focus", () => {
       MusicController.start(0.22);
     }, { once: true });
   }
-
-  /* ── Login form ─────────────────────────────────────── */
   const form     = document.getElementById("login-form");
   const loginBtn = document.getElementById("login-btn");
   if (!form) return;
@@ -30,17 +18,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-
     const username = document.getElementById("username").value.trim();
     const password = document.getElementById("password").value;
-
     if (!username || !password) {
       AuthUI.showError("Please fill in all fields.");
       return;
     }
-
     AuthUI.setLoading(loginBtn, true);
-
     try {
       const res = await fetch("/login", {
         method:  "POST",
@@ -54,17 +38,13 @@ document.addEventListener("DOMContentLoaded", () => {
         AuthUI.showError(msg || "Login failed. Try again.");
         return;
       }
-
       const data = await res.json();
-
       localStorage.setItem("token",    data.token);
       localStorage.setItem("user_id",  data.user_id);
       localStorage.setItem("username", data.username);
       localStorage.setItem("room_id",  data.room_id);
-
       AuthUI.setLoading(loginBtn, false);
       AuthUI.successTransition("/index.html");
-
     } catch (err) {
       AuthUI.setLoading(loginBtn, false);
       AuthUI.showError(err.message || "Network error. Please try again.");
