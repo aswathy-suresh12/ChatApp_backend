@@ -3,108 +3,161 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Chat App</title>
+  <title>CHATAPP</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-
-  <!-- Static Page Background -->
   <div id="page-bg"></div>
-  
-  <!-- Header container (3-dot menu + switches) -->
-  <div class="header-container" style="display:none">
-    <div class="menu-container">
-      <button id="menu-btn">⋮</button>
-      <div class="effect-switches" id="effect-switches">
-        <label><input type="checkbox" id="toggle-flowers" /> 🌸 Flowers</label>
-        <label><input type="checkbox" id="toggle-heart" /> ❤️ Heart</label>
-        <label><input type="checkbox" id="toggle-glow" checked /> 💫 Chat Glow</label>
-        <label id="room-code-btn" style="display:none; cursor:pointer; color:#ff69b4;">
-  🆔 Room Code
-</label>
-
-
-        <!-- 🎵 Music toggle (hidden by default) -->
-        <label id="toggle-music-label" style="display:none;">
-          <input type="checkbox" id="toggle-music" />
-          🎵 Music
-        </label>
-      </div>
-    </div>
-  </div>
-
-  <!-- Chat Container -->
   <div class="chat-container" style="display:none">
-    <!-- Mobile User Notifications -->
-    <div id="mobile-user-notifications"></div>
-
-    <div id="active-users" class="active-users">
-      <h4>Online Users</h4>
-      <ul id="users-list"></ul>
-    </div>
-
-    <!-- Music Navigator (Desktop Only, Top Center) -->
-    <div id="music-controller" style="display:none;">
-      <button id="prev-track">⏮</button>
-      <span id="track-name">Track 1</span>
-      <button id="play-pause">⏯</button>
-      <button id="next-track">⏭</button>
-    </div>
-
-    <div class="chat-main">
-      <ul id="messages"></ul>
-      <div id="typing-indicator" class="typing-indicator"></div>
-
-      <!-- Reply Bar -->
-      <div id="reply-bar" style="display:none; background:#f0f0f0; padding:5px 10px; border-left:4px solid #ff69b4; margin-bottom:5px; border-radius:4px; font-size:0.9em; position:relative;">
-        <span id="replied-message-text"></span>
-        <button type="button" id="cancel-reply" style="position:absolute; right:5px; top:5px; background:none; border:none; cursor:pointer;">✖</button>
-      </div>
-
-      <form id="form" action="">
-        <input id="input" autocomplete="off" placeholder="Type a message..." />
-
-        <!-- Mic Button Wrapper -->
-        <div style="position: relative; display:inline-block;">
-          <button type="button" id="record-btn" aria-pressed="false">🎤</button>
-
-          <!-- Slide-To-Cancel -->
-          <div id="slideToCancel" class="slide-cancel">← Slide to cancel</div>
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="partner-avatar-wrap">
+          <div class="partner-avatar" id="partner-avatar-initial">?</div>
+          <div class="online-dot" id="online-dot" style="display:none"></div>
         </div>
-      </form>
+        <div>
+          <div class="partner-name" id="partner-name-display">—</div>
+          <div class="partner-status" id="partner-status-text">Offline</div>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div id="music-controller">
+          <button id="prev-track" title="Previous">⏮</button>
+          <span id="track-name">Track 1</span>
+          <button id="play-pause" title="Play/Pause">⏯</button>
+          <button id="next-track" title="Next">⏭</button>
+        </div>
+        <button class="topbar-icon-btn" id="topbar-image-btn" title="Send photo">📷</button>
+        <button class="topbar-icon-btn" id="menu-btn" aria-label="Menu">⋮</button>
+        <div class="effect-switches" id="effect-switches">
+          <div class="menu-row" id="row-flowers">
+            <div class="menu-icon-chip chip-pink">🌸</div>
+            <span class="menu-label">Flowers</span>
+            <div class="pill-toggle" id="toggle-flowers-pill">
+              <div class="pill-knob"></div>
+            </div>
+            <input type="checkbox" id="toggle-flowers" style="display:none" />
+          </div>
+          <div class="menu-row" id="row-heart">
+            <div class="menu-icon-chip chip-pink">❤️</div>
+            <span class="menu-label">Hearts</span>
+            <div class="pill-toggle" id="toggle-heart-pill">
+              <div class="pill-knob"></div>
+            </div>
+            <input type="checkbox" id="toggle-heart" style="display:none" />
+          </div>
+          <div class="menu-row" id="row-glow">
+            <div class="menu-icon-chip chip-purple">💫</div>
+            <span class="menu-label">Chat glow</span>
+            <div class="pill-toggle on" id="toggle-glow-pill">
+              <div class="pill-knob"></div>
+            </div>
+            <input type="checkbox" id="toggle-glow" checked style="display:none" />
+          </div>
+          <div class="menu-divider"></div>
+          <div class="menu-row" id="toggle-music-label" style="display:none">
+            <div class="menu-icon-chip chip-gold">🎵</div>
+            <span class="menu-label">Music</span>
+            <div class="pill-toggle" id="toggle-music-pill">
+              <div class="pill-knob"></div>
+            </div>
+            <input type="checkbox" id="toggle-music" style="display:none" />
+          </div>
+          <div class="menu-divider"></div>
+          <div class="menu-row" id="room-code-btn" style="display:none">
+            <div class="menu-icon-chip chip-blue">🆔</div>
+            <span class="menu-label" id="room-code-text">Room code</span>
+          </div>
+          <div class="menu-row" id="logout-btn">
+            <div class="menu-icon-chip chip-red">🚪</div>
+            <span class="menu-label">Logout</span>
+          </div>
+        </div>
+      </div>
     </div>
-
-    <!-- Effects Elements -->
+    <div id="mobile-user-notifications"></div>
+    <div class="chat-body">
+      <div id="active-users">
+        <h4>Online</h4>
+        <ul id="users-list"></ul>
+      </div>
+      <div class="chat-main">
+        <ul id="messages"></ul>
+        <div id="typing-indicator" class="typing-indicator"></div>
+        <div id="reply-bar">
+          <span id="replied-message-text"></span>
+          <button type="button" id="cancel-reply">✕</button>
+        </div>
+        <form id="form" action="">
+          <input type="file" id="image-input" accept="image/*" style="display:none" />
+          <button type="button" class="form-icon-btn" id="image-btn" title="Send photo" style="display:none">📷</button>
+          <input id="input" autocomplete="off" placeholder="Say something sweet…" />
+          <div style="position:relative; display:inline-flex; align-items:center;">
+            <div class="slide-cancel" id="slideToCancel">← Slide to cancel</div>
+            <button type="button" id="record-btn">🎤</button>
+          </div>
+        </form>
+      </div>
+    </div>
     <div id="lightning-container"></div>
     <div id="flash-overlay"></div>
   </div>
-
   <script src="/socket.io/socket.io.js"></script>
-
-  <!-- Inject Render environment variable -->
   <script>
     const RENDER_MUSIC_ENABLED = "true";
   </script>
-
-  <!-- Load login/signup and chat logic -->
   <script src="login.js"></script>
   <script src="signup.js"></script>
   <script src="script.js"></script>
-
-  <!-- Check login on page load -->
   <script>
-    const token = localStorage.getItem("token");
-    const user_id = localStorage.getItem("user_id");
-    const username = localStorage.getItem("username");
-
-    if (!token || !user_id || !username) {
-      // redirect to login if not logged in
-      window.location.href = "/signup.html";
-    } else {
-      // show chat UI
-      document.querySelector(".header-container").style.display = "block";
+    (function() {
+      const token    = localStorage.getItem("token");
+      const user_id  = localStorage.getItem("user_id");
+      const username = localStorage.getItem("username");
+      if (!token || !user_id || !username) {
+        window.location.href = "/signup.html";
+        return;
+      }
       document.querySelector(".chat-container").style.display = "flex";
-    }
+      function bindPill(pillId, checkboxId) {
+        const pill = document.getElementById(pillId);
+        const cb   = document.getElementById(checkboxId);
+        if (!pill || !cb) return;
+        pill.addEventListener("click", () => {
+          cb.checked = !cb.checked;
+          pill.classList.toggle("on", cb.checked);
+          cb.dispatchEvent(new Event("change"));
+        });
+      }
+
+      bindPill("toggle-flowers-pill", "toggle-flowers");
+      bindPill("toggle-heart-pill",   "toggle-heart");
+      bindPill("toggle-glow-pill",    "toggle-glow");
+      bindPill("toggle-music-pill",   "toggle-music");
+      const menuBtn      = document.getElementById("menu-btn");
+      const effectPanel  = document.getElementById("effect-switches");
+      menuBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        effectPanel.classList.toggle("show");
+      });
+      document.addEventListener("click", (e) => {
+        if (!menuBtn.contains(e.target) && !effectPanel.contains(e.target)) {
+          effectPanel.classList.remove("show");
+        }
+      });
+      document.getElementById("topbar-image-btn").addEventListener("click", () => {
+        document.getElementById("image-input").click();
+      });
+      if (window.innerWidth < 600) {
+        document.getElementById("image-btn").style.display = "flex";
+      }
+      document.getElementById("logout-btn").addEventListener("click", () => {
+        localStorage.clear();
+        window.location.href = "/login.html";
+      });
+
+    })();
   </script>
+
 </body>
 </html>
