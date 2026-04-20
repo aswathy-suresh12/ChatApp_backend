@@ -1,54 +1,1016 @@
 document.addEventListener("DOMContentLoaded", () => {
-  bootAuthEngine();
-  const bgMusic = document.getElementById("bg-music");
-  if (bgMusic) MusicController.init(bgMusic);
-  const firstInput = document.getElementById("username");
-  if (firstInput) {
-    firstInput.addEventListener("focus", () => {
-      MusicController.start(0.22);
-    }, { once: true });
+  const token    = localStorage.getItem("token");
+  const userId   = localStorage.getItem("user_id");
+  const username = localStorage.getItem("username");
+  if (!token || !userId || !username) {
+    window.location.href = "/login.html";
+    return;
   }
-  const form     = document.getElementById("login-form");
-  const loginBtn = document.getElementById("login-btn");
-  if (!form) return;
-
-  loginBtn.addEventListener("click", (e) => {
-    AuthUI.addRipple(loginBtn, e);
+  const socket = io("/", { auth: { token } });
+  socket.on("connect", () => console.log("✅ Socket connected", socket.id));
+  socket.on("connect_error", err => {
+    console.error("❌ Socket auth error:", err.message);
+    if (err.message === "Invalid token") {
+      localStorage.clear();
+      window.location.href = "/login.html";
+    }
   });
+  const form               = document.getElementById("form");
+  const input              = document.getElementById("input");
+  const messages           = document.getElementById("messages");
+  const recordBtn          = document.getElementById("record-btn");
+  const typingIndicator    = document.getElementById("typing-indicator");
+  const imageInput         = document.getElementById("image-input");
+  const imageBtn           = document.getElementById("image-btn");
+  const replyBar           = document.getElementById("reply-bar");
+  const repliedMessageText = document.getElementById("replied-message-text");
+  const cancelReplyBtn     = document.getElementById("cancel-reply");
+  const musicToggleLabel   = document.getElementById("toggle-music-label");
+  const musicToggle        = document.getElementById("toggle-music");
+  const musicController    = document.getElementById("music-controller");
+  const trackNameSpan      = document.getElementById("track-name");
+  const playPauseBtn       = document.getElementById("play-pause");
+  const nextBtn            = document.getElementById("next-track");
+  const prevBtn            = document.getElementById("prev-track");
+  const partnerAvatar      = document.getElementById("partner-avatar-initial");
+  const partnerNameDisplay = document.getElementById("partner-name-display");
+  const partnerStatusText  = document.getElementById("partner-status-text");
+  const onlineDot          = document.getElementById("online-dot");
+  const roomCodeBtn        = document.getElementById("room-code-btn");
+  const roomCodeText       = document.getElementById("room-code-text");
+  let messageCounter    = 0;
+  let repliedMessage    = null;
+  let musicEnabled      = false;
+  let currentTrackIndex = 0;
+  let currentAudio      = null;
+  let mediaStream       = null;
+  let mediaRecorder     = null;
+  let audioChunks       = [];
+  let flowerInterval    = null;
+  let usersTyping       = new Set();
+  let recordingUsers    = new Set();
+  let activeUsers       = new Set();
+  let typingTimeout     = null;
+  let isTyping          = false;
+  let isRecording       = false;
+  let canceled          = false;
+  let isHold            = false;
+  let holdTimeout       = null;
+  let startX            = 0;
+  let previousUsers     = [];
+  let partnerName       = null;
+  let roomCode          = null;
+  let isAdmin           = false;
+  let commandCooldown   = false;
+  const ADMIN_USERS = ["Thejus", "Nandhana"];
+  function isAdminUser() {
+    return ADMIN_USERS.includes(username) || isAdmin;
+  }
+  const REACTIONS = ["❤️", "😂", "🥺", "🔥", "👏", "😍"];
+  const musicUrls = [
+    "https://files.catbox.moe/mi9igu.mp4",
+    "https://files.catbox.moe/a4jv43.mp4",
+    "https://files.catbox.moe/x4wwty.mp4",
+    "https://files.catbox.moe/dr6g3i.mp4",
+    "https://files.catbox.moe/hic3ht.mp4",
+    "https://files.catbox.moe/t8e1x9.mp4",
+    "https://files.catbox.moe/rmf1cg.mp4",
+    "https://files.catbox.moe/ioeftv.mp4",
+    "https://files.catbox.moe/ri548a.mp4",
+    "https://files.catbox.moe/jl8hvn.mp4",
+    "https://files.catbox.moe/ceyeyl.mp4",
+    "https://files.catbox.moe/6rm8vd.mp4",
+    "https://files.catbox.moe/bcrbr6.mp4",
+    "https://files.catbox.moe/paqtae.mp4",
+    "https://files.catbox.moe/mx0pha.mp4",
+    "https://files.catbox.moe/ip9a6m.mp4",
+    "https://files.catbox.moe/uj0338.mp4",
+    "https://files.catbox.moe/kofc8i.mp4",
+    "https://files.catbox.moe/ggx6bs.mp3",
+    "https://files.catbox.moe/jf1jjs.mp4",
+    "https://files.catbox.moe/i5i7a2.mp4",
+    "https://files.catbox.moe/ljzval.mp4",
+    "https://files.catbox.moe/5qox9n.mp4",
+    "https://files.catbox.moe/hi2whc.mp4",
+    "https://files.catbox.moe/h5hevr.mp4",
+    "https://files.catbox.moe/qevape.mp4",
+    "https://files.catbox.moe/s4us9i.mp3",
+    "https://files.catbox.moe/76g7qu.mp4",
+    "https://files.catbox.moe/zb08d5.mp4",
+    "https://files.catbox.moe/gzdd9f.mp3",
+    "https://files.catbox.moe/ni30vo.mp4",
+    "https://files.catbox.moe/zqmlpu.mp4",
+    "https://files.catbox.moe/t12usb.mp4",
+    "https://files.catbox.moe/9olfxv.mp4",
+    "https://files.catbox.moe/i541iw.mp4",
+    "https://files.catbox.moe/zfgl60.mp4",
+    "https://files.catbox.moe/b6fybu.mp4",
+    "https://files.catbox.moe/js05nr.mp4",
+    "https://files.catbox.moe/5504r6.mp3",
+    "https://files.catbox.moe/9pw1ym.mp4",
+    "https://files.catbox.moe/9nv0nw.mp3",
+    "https://files.catbox.moe/exa8zj.mp3",
+    "https://files.catbox.moe/nxyai1.mp4",
+    "https://files.catbox.moe/1uw2z5.mpeg",
+    "https://files.catbox.moe/basj61.mp4",
+    "https://files.catbox.moe/7f0pzh.mp4",
+    "https://files.catbox.moe/bwzfe7.mp4",
+    "https://files.catbox.moe/0zhxlu.mp4",
+    "https://files.catbox.moe/st9i8s.mp4",
+    "https://files.catbox.moe/t7yvae.mp4",
+    "https://files.catbox.moe/l539l7.mp4",
+    "https://files.catbox.moe/xjqxn7.mp4",
+    "https://files.catbox.moe/ku2vhg.mp4",
+    "https://files.catbox.moe/sf6yg5.mp4",
+    "https://files.catbox.moe/utdobw.mp4",
+    "https://files.catbox.moe/x0t9pc.mp4",
+    "https://files.catbox.moe/prw3g6.mp4",
+    "https://files.catbox.moe/j2ncnz.mp4",
+    "https://files.catbox.moe/o1gvpb.mp4"
+   
+  ];
+  const commands = {
+    cls:      (args) => handleClearChat(args),
+    dlt:      (args) => handleDeleteMessage(args),
+    ndn:      (args) => handleNDNCommand(args),
+    promote:  (args) => handlePromote(args),
+    demote:   (args) => handleDemote(args),
+    returnbg: (args) => handleReturnBg(args),
+    help:     (args) => handleHelp(args),
+  };
 
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const username = document.getElementById("username").value.trim();
-    const password = document.getElementById("password").value;
-    if (!username || !password) {
-      AuthUI.showError("Please fill in all fields.");
+    function handleInput(text) {  
+    const trimmed = text.trim();
+    const raw = trimmed.startsWith("/") ? trimmed.slice(1) : trimmed;
+    const parts   = raw.split(/\s+/);
+    const cmd     = parts[0].toLowerCase();
+    const args    = parts.slice(1);
+    if (commands[cmd]) {
+      if (commandCooldown) {
+        showToast("⏳ Too fast! Wait a moment.");
+        return true;
+      }
+      commandCooldown = true;
+      setTimeout(() => { commandCooldown = false; }, 600);
+      commands[cmd](args);
+      return true;
+    }
+
+    return false;
+  }
+
+  function handleClearChat() {
+    if (!isAdminUser()) {
+      showToast("❌ Admin only command");
       return;
     }
-    AuthUI.setLoading(loginBtn, true);
-    try {
-      const res = await fetch("/login", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ username, password })
-      });
+    socket.emit("clear chat");
+  }
 
-      if (!res.ok) {
-        const msg = await res.text();
-        AuthUI.setLoading(loginBtn, false);
-        AuthUI.showError(msg || "Login failed. Try again.");
-        return;
+  function handleDeleteMessage() {
+    if (!repliedMessage) {
+      showToast("↩️ Reply to a message first, then type dlt");
+      return;
+    }
+    socket.emit("delete message", {
+      targetUser:  repliedMessage.user,
+      targetText:  repliedMessage.text,
+      targetId:    repliedMessage.id,
+      commandUser: username,
+      commandText: "dlt"
+    });
+    clearReply();
+  }
+
+  function handleNDNCommand(args) {
+    if (!isAdminUser()) {
+      showToast("❌ Admin only command");
+      return;
+    }
+    const action = (args[0] || "").toLowerCase();
+
+    switch (action) {
+      case "start":
+        socket.emit("ndn start", { trackIndex: currentTrackIndex, startTime: Date.now() });
+        break;
+      case "stop":
+        socket.emit("ndn stop");
+        break;
+      case "play": {
+        const idx = parseInt(args[1], 10);
+        if (isNaN(idx) || idx < 1 || idx > musicUrls.length) {
+          showToast(`🎵 Track must be 1–${musicUrls.length}`);
+          return;
+        }
+        socket.emit("ndn start", { trackIndex: idx - 1, startTime: Date.now() });
+        break;
       }
-      const data = await res.json();
-      localStorage.setItem("token",    data.token);
-      localStorage.setItem("user_id",  data.user_id);
-      localStorage.setItem("username", data.username);
-      localStorage.setItem("room_id",  data.room_id);
-      AuthUI.setLoading(loginBtn, false);
-      AuthUI.successTransition("/index.html");
-    } catch (err) {
-      AuthUI.setLoading(loginBtn, false);
-      AuthUI.showError(err.message || "Network error. Please try again.");
+      case "next":
+        socket.emit("ndn next", { startTime: Date.now() });
+        break;
+      case "prev":
+        socket.emit("ndn prev", { startTime: Date.now() });
+        break;
+      case "jump":
+        socket.emit("ndn jump", { trackIndex: currentTrackIndex, startTime: Date.now() });
+        break;
+      case "dark":
+        socket.emit("ndn dark");
+        break;
+      case "return":
+        socket.emit("ndn return");
+        break;
+      default:
+        showToast("🎵 ndn: start | stop | play <n> | next | prev | jump | dark | return");
+    }
+  }
+
+  function handlePromote() {
+    if (!isAdminUser()) { showToast("❌ Admin only"); return; }
+    socket.emit("admin command", { action: "promote", by: username });
+  }
+
+  function handleDemote() {
+    if (!isAdminUser()) { showToast("❌ Admin only"); return; }
+    socket.emit("admin command", { action: "demote", by: username });
+  }
+
+  function handleReturnBg() {
+    if (!isAdminUser()) { showToast("❌ Admin only"); return; }
+    socket.emit("return bg");
+  }
+  function handleHelp() {
+    const helpText = [
+      "cls — clear chat (admin)",
+      "dlt — delete replied message",
+      "ndn start/stop/play N/next/prev — music",
+      "ndn dark/return — dark overlay toggle",
+      "returnbg — reset background",
+      "promote / demote — admin control",
+    ].join("\n");
+    showToast("📋 Commands loaded — see console");
+    console.log("── CHATAPP COMMANDS ──\n" + helpText);
+  }
+  socket.on("ndn start", (data) => {
+    musicEnabled = true;
+    if (musicController) musicController.style.display = "flex";
+    if (musicToggleLabel) musicToggleLabel.style.display = "flex";
+    syncPlay(data.trackIndex, data.startTime);
+  });
+
+  socket.on("ndn stop", () => {
+    if (currentAudio) currentAudio.pause();
+    musicEnabled = false;
+    if (musicController) musicController.style.display = "none";
+  });
+
+  socket.on("ndn next", (data) => {
+    const nextIdx = ((currentTrackIndex + 1) % musicUrls.length);
+    syncPlay(nextIdx, data.startTime);
+  });
+
+  socket.on("ndn prev", (data) => {
+    const prevIdx = ((currentTrackIndex - 1 + musicUrls.length) % musicUrls.length);
+    syncPlay(prevIdx, data.startTime);
+  });
+
+  socket.on("ndn jump", (data) => {
+    syncPlay(data.trackIndex, data.startTime);
+  });
+
+  socket.on("ndn dark", () => {
+    document.documentElement.style.setProperty("--bg-base", "#000");
+    document.body.style.filter = "brightness(0.6)";
+    showToast("🌑 Dark mode on");
+  });
+
+  socket.on("ndn return", () => {
+    document.documentElement.style.removeProperty("--bg-base");
+    document.body.style.filter = "";
+    showToast("☀️ Dark mode off");
+  });
+
+  socket.on("admin command", (data) => {
+    if (data.action === "promote") {
+      isAdmin = true;
+      showToast("👑 You've been promoted to admin");
+    } else if (data.action === "demote") {
+      isAdmin = false;
+      showToast("🔻 Admin access removed");
     }
   });
 
+  socket.on("return bg", () => {
+    bgIndex = 0;
+    if (chatContainer) chatContainer.style.backgroundImage = `url('${bgImages[0]}')`;
+    showToast("🖼️ Background reset");
+  });
+
+  socket.on("clear chat", () => {
+    const allItems = document.querySelectorAll("#messages .msg-row, #messages li");
+    allItems.forEach(el => {
+      el.style.transition = "opacity 0.4s, transform 0.4s";
+      el.style.opacity    = "0";
+      el.style.transform  = "scale(0.8)";
+    });
+    setTimeout(() => { messages.innerHTML = ""; }, 420);
+  });
+
+  function syncPlay(trackIndex, startTime) {
+    if (currentAudio) currentAudio.pause();
+    currentTrackIndex = ((trackIndex % musicUrls.length) + musicUrls.length) % musicUrls.length;
+    currentAudio = new Audio(musicUrls[currentTrackIndex]);
+    currentAudio.volume = 0.25;
+    const elapsed = startTime ? (Date.now() - startTime) / 1000 : 0;
+    currentAudio.currentTime = Math.max(0, elapsed);
+    currentAudio.play().catch(() => {
+      showToast("🎵 Tap anywhere to start synced music");
+      const resume = () => { currentAudio.play().catch(() => {}); document.removeEventListener("click", resume); };
+      document.addEventListener("click", resume, { once: true });
+    });
+
+    if (trackNameSpan) trackNameSpan.textContent = `Track ${currentTrackIndex + 1}`;
+    if (musicController) musicController.style.display = "flex";
+    currentAudio.onended = () => syncPlay(currentTrackIndex + 1, Date.now());
+  }
+  function playTrack(index) {
+    if (currentAudio) currentAudio.pause();
+    currentTrackIndex = ((index % musicUrls.length) + musicUrls.length) % musicUrls.length;
+    currentAudio = new Audio(musicUrls[currentTrackIndex]);
+    currentAudio.volume = 0.25;
+    currentAudio.play().catch(() => {});
+    if (trackNameSpan) trackNameSpan.textContent = `Track ${currentTrackIndex + 1}`;
+    currentAudio.onended = () => playTrack(currentTrackIndex + 1);
+  }
+
+  function startMusic() {
+    musicEnabled = true;
+    if (musicController) musicController.style.display = "flex";
+    playTrack(currentTrackIndex);
+  }
+
+  function stopMusic() {
+    musicEnabled = false;
+    if (currentAudio) currentAudio.pause();
+    if (musicController) musicController.style.display = "none";
+  }
+
+  if (typeof RENDER_MUSIC_ENABLED !== "undefined" && RENDER_MUSIC_ENABLED === "true") {
+    if (musicToggleLabel) musicToggleLabel.style.display = "flex";
+    if (musicToggle) musicToggle.addEventListener("change", () => {
+      musicToggle.checked ? startMusic() : stopMusic();
+    });
+  }
+
+  if (playPauseBtn) playPauseBtn.addEventListener("click", () => {
+    if (!currentAudio) { playTrack(currentTrackIndex); return; }
+    currentAudio.paused ? currentAudio.play() : currentAudio.pause();
+  });
+  if (nextBtn) nextBtn.addEventListener("click", () => playTrack(currentTrackIndex + 1));
+  if (prevBtn) prevBtn.addEventListener("click", () => playTrack(currentTrackIndex - 1));
+  function updateTopbarPartner(userList) {
+    const partner = userList.find(u => u !== username);
+    if (!partner) {
+      partnerNameDisplay.textContent = "Waiting…";
+      partnerStatusText.textContent  = "Not online yet";
+      partnerStatusText.style.color  = "rgba(245,238,255,0.35)";
+      if (onlineDot) onlineDot.style.display = "none";
+    } else {
+      partnerName = partner;
+      partnerNameDisplay.textContent    = partner + " 💕";
+      partnerStatusText.textContent     = "Online now";
+      partnerStatusText.style.color     = "#4ade80";
+      partnerAvatar.textContent         = partner.charAt(0).toUpperCase();
+      if (onlineDot) onlineDot.style.display = "block";
+    }
+  }
+  function updatePCActiveUsersList() {
+    const usersList = document.getElementById("users-list");
+    if (!usersList) return;
+    usersList.innerHTML = "";
+    activeUsers.forEach(u => {
+      const li = document.createElement("li");
+      li.textContent = u;
+      if (u === username) li.classList.add("me");
+      usersList.appendChild(li);
+    });
+  }
+  socket.on("joined_room", (data) => {
+    if (!data.messages) return;
+    messages.innerHTML = "";
+    data.messages.forEach(msg => {
+      const isOwn = String(msg.sender_id) === String(userId);
+      appendMessage({
+        user: isOwn ? username : msg.sender_username,
+        text: msg.message_content,
+        id:   String(msg.message_id),
+        ts:   msg.timestamp
+      }, isOwn ? "sent" : "received", false);
+    });
+    messages.scrollTop = messages.scrollHeight;
+  });
+
+  function formatTime(ts) {
+    const d = ts ? new Date(ts) : new Date();
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function appendMessage(msgObj, type, animate = true) {
+    const isSent = type === "sent";
+    const row = document.createElement("div");
+    row.classList.add("msg-row", type);
+    if (!isSent) {
+      const av = document.createElement("div");
+      av.classList.add("msg-mini-avatar");
+      av.textContent = (msgObj.user || "?").charAt(0).toUpperCase();
+      row.appendChild(av);
+    }
+
+    const wrap = document.createElement("div");
+    wrap.classList.add("msg-bubble-wrap");
+    const li = document.createElement("li");
+    li.classList.add(type);
+    li.dataset.user = msgObj.user || "";
+    li.dataset.text = msgObj.text || "";
+    li.dataset.id   = msgObj.id   || (messageCounter++).toString();
+    if (msgObj.replied) {
+      let prev = String(msgObj.replied.text || "").trim();
+      if (prev.length > 100) prev = prev.slice(0, 97) + "…";
+      const rp = document.createElement("div");
+      rp.classList.add("replied-preview");
+      rp.innerHTML = `<strong>${escapeHtml(msgObj.replied.user)}:</strong> ${escapeHtml(prev)}`;
+      li.appendChild(rp);
+    }
+    li.appendChild(document.createTextNode(msgObj.text || ""));
+    const glowToggle = document.getElementById("toggle-glow");
+    if (animate && glowToggle && glowToggle.checked) {
+      li.classList.add("glow");
+      li.addEventListener("animationend", () => li.classList.remove("glow"), { once: true });
+    }
+
+    const heartToggle = document.getElementById("toggle-heart");
+    if (animate && heartToggle && heartToggle.checked) {
+      const heart = document.createElement("div");
+      heart.classList.add("heart-ripple");
+      li.appendChild(heart);
+      setTimeout(() => heart.remove(), 700);
+    }
+
+    wrap.appendChild(li);
+
+    const meta = document.createElement("div");
+    meta.classList.add("msg-meta");
+    meta.innerHTML = `<span>${formatTime(msgObj.ts)}</span>${isSent ? '<span class="read-ticks">✓✓</span>' : ""}`;
+    wrap.appendChild(meta);
+    const reactionBar = document.createElement("div");
+    reactionBar.classList.add("reaction-bar");
+    reactionBar.dataset.msgId = li.dataset.id;
+    wrap.appendChild(reactionBar);
+    row.appendChild(wrap);
+    messages.appendChild(row);
+    let lastTap = 0;
+    li.addEventListener("click", () => {
+      const now = Date.now();
+      if (now - lastTap < 350) showReactionPicker(li, reactionBar, msgObj.id || li.dataset.id);
+      lastTap = now;
+    });
+    messages.scrollTop = messages.scrollHeight;
+    return li;
+  }
+
+  function showReactionPicker(bubble, reactionBar, msgId) {
+    document.querySelectorAll(".reaction-picker").forEach(p => p.remove());
+    const picker = document.createElement("div");
+    picker.classList.add("reaction-picker");
+    Object.assign(picker.style, {
+      position: "absolute",
+      zIndex: "200",
+      background: "rgba(14,8,22,0.92)",
+      border: "0.5px solid rgba(255,255,255,0.12)",
+      borderRadius: "24px",
+      padding: "6px 8px",
+      display: "flex",
+      gap: "6px",
+      boxShadow: "0 8px 28px rgba(0,0,0,0.5)",
+      backdropFilter: "blur(20px)",
+      animation: "msgSlideIn 0.2s ease both"
+    });
+
+    REACTIONS.forEach(emoji => {
+      const btn = document.createElement("span");
+      btn.textContent = emoji;
+      Object.assign(btn.style, {
+        fontSize: "20px",
+        cursor: "pointer",
+        transition: "transform 0.15s",
+        userSelect: "none"
+      });
+      btn.addEventListener("mouseenter", () => btn.style.transform = "scale(1.3)");
+      btn.addEventListener("mouseleave", () => btn.style.transform = "scale(1)");
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        addReaction(reactionBar, emoji);
+        socket.emit("react message", { msgId, emoji, user: username });
+        picker.remove();
+      });
+      picker.appendChild(btn);
+    });
+
+    const bubbleRect = bubble.getBoundingClientRect();
+    const chatRect   = document.querySelector(".chat-container").getBoundingClientRect();
+    picker.style.left = Math.max(0, bubbleRect.left - chatRect.left) + "px";
+    picker.style.top  = (bubbleRect.top - chatRect.top - 48) + "px";
+    picker.style.position = "absolute";
+    document.querySelector(".chat-body").style.position = "relative";
+    document.querySelector(".chat-body").appendChild(picker);
+    setTimeout(() => document.addEventListener("click", () => picker.remove(), { once: true }), 10);
+  }
+
+  function addReaction(reactionBar, emoji) {
+    const existing = [...reactionBar.querySelectorAll(".reaction-chip")]
+      .find(c => c.dataset.emoji === emoji);
+    if (existing) {
+      const count = parseInt(existing.dataset.count || "1") + 1;
+      existing.dataset.count = count;
+      existing.textContent = `${emoji} ${count}`;
+    } else {
+      const chip = document.createElement("div");
+      chip.classList.add("reaction-chip");
+      chip.dataset.emoji = emoji;
+      chip.dataset.count = "1";
+      chip.textContent = emoji;
+      reactionBar.appendChild(chip);
+    }
+  }
+
+  socket.on("react message", ({ msgId, emoji }) => {
+    document.querySelectorAll(".msg-bubble-wrap").forEach(wrap => {
+      const li  = wrap.querySelector("li");
+      const bar = wrap.querySelector(".reaction-bar");
+      if (li && bar && (li.dataset.id === String(msgId) || bar.dataset.msgId === String(msgId))) {
+        addReaction(bar, emoji);
+      }
+    });
+  });
+
+    function appendImageMessage(data, type) {
+    const isSent = type === "sent";
+    const row    = document.createElement("div");
+    row.classList.add("msg-row", type);
+    if (!isSent) {
+      const av = document.createElement("div");
+      av.classList.add("msg-mini-avatar");
+      av.textContent = (data.sender || "?").charAt(0).toUpperCase();
+      row.appendChild(av);
+    }
+
+    const wrap = document.createElement("div");
+    wrap.classList.add("msg-bubble-wrap");
+    const li = document.createElement("li");
+    li.classList.add(type);
+    const img = document.createElement("img");
+    img.classList.add("msg-img");
+    img.style.maxWidth = "220px";
+    if (data.viewOnce) {
+      img.src = "/assets/view-once.png";
+      img.onclick = () => socket.emit("view image", data.mediaId);
+    } else {
+      img.src = data.image;
+    }
+
+    li.appendChild(img);
+    wrap.appendChild(li);
+    const meta = document.createElement("div");
+    meta.classList.add("msg-meta");
+    meta.textContent = formatTime();
+    wrap.appendChild(meta);
+    row.appendChild(wrap);
+    messages.appendChild(row);
+    messages.scrollTop = messages.scrollHeight;
+  }
+  [imageBtn, document.getElementById("topbar-image-btn")].forEach(btn => {
+    if (btn) btn.addEventListener("click", () => imageInput.click());
+  });
+
+  imageInput.addEventListener("change", () => {
+    const file = imageInput.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { alert("Image too large (max 5MB)"); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const viewOnce = confirm("Send as view-once image?");
+      socket.emit("send image", { image: reader.result, viewOnce });
+    };
+    reader.readAsDataURL(file);
+    imageInput.value = "";
+  });
+
+    socket.on("new image",    (data) => appendImageMessage(data, data.sender === username ? "sent" : "received"));
+    socket.on("image expired", () => alert("This image has expired (view-once)"));
+    socket.on("image data", (data) => {
+    const img    = document.createElement("img");
+    img.src      = data.image;
+    img.style.cssText = "max-width:90%;border-radius:12px;";
+    const viewer = document.createElement("div");
+    Object.assign(viewer.style, {
+      position:"fixed",inset:"0",background:"rgba(0,0,0,0.92)",
+      display:"flex",alignItems:"center",justifyContent:"center",zIndex:"9999"
+    });
+    viewer.appendChild(img);
+    viewer.onclick = () => viewer.remove();
+    document.body.appendChild(viewer);
+  });
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
+    if (handleInput(text)) {
+      input.value = "";
+      updateRecordBtn();
+      return;
+    }
+
+    const msg = {
+      user: username,
+      text,
+      id: (messageCounter++).toString(),
+      ts: Date.now(),
+      replied: repliedMessage ? { user: repliedMessage.user, text: repliedMessage.text, id: repliedMessage.id } : null
+    };
+
+    socket.emit("chat message", msg);
+    appendMessage(msg, "sent");
+    clearReply();
+    input.value = "";
+    socket.emit("stop typing", username);
+    updateRecordBtn();
+  });
+
+  socket.on("chat message", (msg) => {
+    if (msg.user !== username) appendMessage(msg, "received");
+  });
+  function animateDeleteMessage(li) {
+    const rect   = li.getBoundingClientRect();
+    const cx     = rect.left + rect.width / 2;
+    const cy     = rect.top  + rect.height / 2;
+    for (let i = 0; i < 40; i++) {
+      const p = document.createElement("div");
+      p.classList.add("glow-particle");
+      const angle = Math.random() * 2 * Math.PI;
+      const r     = Math.random() * 70 + 15;
+      p.style.cssText = `left:${cx}px;top:${cy}px;animation-duration:${0.6 + Math.random() * 0.6}s;`;
+      p.style.setProperty("--x", (Math.cos(angle) * r) + "px");
+      p.style.setProperty("--y", (Math.sin(angle) * r) + "px");
+      document.body.appendChild(p);
+      setTimeout(() => p.remove(), 1200);
+    }
+    const row = li.closest(".msg-row");
+    const target = row || li;
+    target.style.transition = "opacity 0.5s, transform 0.5s";
+    target.style.opacity    = "0";
+    target.style.transform  = "scale(0.4) rotate(" + (Math.random()*20-10) + "deg)";
+    setTimeout(() => target.remove(), 500);
+  }
+
+  socket.on("delete message", (data) => {
+    document.querySelectorAll("#messages li").forEach(li => {
+      const u  = li.dataset.user;
+      const t  = li.dataset.text;
+      const id = li.dataset.id;
+      if (id === String(data.targetId) || (u === data.targetUser && t === data.targetText)) {
+        animateDeleteMessage(li);
+      }
+      if (u === data.commandUser && t === data.commandText) {
+        animateDeleteMessage(li);
+      }
+    });
+  });
+  function appendVoiceMessage(msg) {
+    const isSent = msg.user === username;
+    const row    = document.createElement("div");
+    row.classList.add("msg-row", isSent ? "sent" : "received");
+    if (!isSent) {
+      const av = document.createElement("div");
+      av.classList.add("msg-mini-avatar");
+      av.textContent = (msg.user || "?").charAt(0).toUpperCase();
+      row.appendChild(av);
+    }
+
+    const wrap = document.createElement("div");
+    wrap.classList.add("msg-bubble-wrap");
+    const li = document.createElement("li");
+    li.classList.add(isSent ? "sent" : "received");
+    li.dataset.user = msg.user;
+    li.dataset.text = "voice";
+    li.dataset.id   = msg.id;
+    const audio       = document.createElement("audio");
+    audio.controls    = true;
+    audio.src         = msg.audio;
+    audio.preload     = "none";
+    li.appendChild(audio);
+    wrap.appendChild(li);
+    const meta = document.createElement("div");
+    meta.classList.add("msg-meta");
+    meta.textContent = formatTime(msg.ts);
+    wrap.appendChild(meta);
+    row.appendChild(wrap);
+    messages.appendChild(row);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  socket.on("voice message", (msg) => {
+    if (msg.user !== username) appendVoiceMessage(msg);
+  });
+
+  async function ensureMediaStream() {
+    if (!mediaStream) mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    return mediaStream;
+  }
+
+  async function handleStart(e) {
+    if (isRecording) return;
+    isRecording = true;
+    canceled    = false;
+    startX      = (e.touches ? e.touches[0] : e).clientX;
+    document.getElementById("slideToCancel").classList.add("show");
+    recordBtn.classList.add("recording-pulse");
+    const stream  = await ensureMediaStream();
+    audioChunks   = [];
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.canceled = false;
+    mediaRecorder.ondataavailable = (ev) => audioChunks.push(ev.data);
+    mediaRecorder.onstart         = () => socket.emit("start recording", username);
+    mediaRecorder.onstop          = () => {
+      recordBtn.classList.remove("recording-pulse");
+      if (!mediaRecorder.canceled) {
+        const blob   = new Blob(audioChunks, { type: "audio/webm" });
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const voiceMsg = { user: username, audio: reader.result, id: (messageCounter++).toString(), ts: Date.now() };
+          socket.emit("voice message", voiceMsg);
+          appendVoiceMessage(voiceMsg);
+        };
+        reader.readAsDataURL(blob);
+      }
+      socket.emit("stop recording", username);
+      isRecording = false;
+      canceled    = false;
+      updateRecordBtn();
+    };
+    mediaRecorder.start();
+    recordBtn.textContent = "⏺";
+  }
+
+  function handleMove(e) {
+    if (!isRecording) return;
+    const curX  = (e.touches ? e.touches[0] : e).clientX;
+    const diff  = startX - curX;
+    const sc    = document.getElementById("slideToCancel");
+    if (diff > 80) {
+      canceled = true;
+      sc.classList.add("canceling");
+      sc.textContent = "Release to cancel";
+    } else {
+      canceled = false;
+      sc.classList.remove("canceling");
+      sc.textContent = "← Slide to cancel";
+    }
+  }
+
+  function handleEnd() {
+    const sc = document.getElementById("slideToCancel");
+    if (!isRecording) return;
+    sc.classList.remove("show", "canceling");
+    sc.textContent = "← Slide to cancel";
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      mediaRecorder.canceled = canceled;
+      mediaRecorder.stop();
+    } else {
+      recordBtn.classList.remove("recording-pulse");
+      isRecording = false;
+      canceled    = false;
+      updateRecordBtn();
+    }
+  }
+
+  function updateRecordBtn() {
+    if (input.value.trim().length > 0) {
+      recordBtn.textContent  = "➤";
+      recordBtn.dataset.mode = "send";
+    } else {
+      recordBtn.textContent  = "🎤";
+      recordBtn.dataset.mode = "mic";
+    }
+  }
+
+  updateRecordBtn();
+  input.addEventListener("input", updateRecordBtn);
+
+  recordBtn.addEventListener("click", () => {
+    if (recordBtn.dataset.mode === "send") form.requestSubmit();
+  });
+
+  recordBtn.addEventListener("mousedown", (e) => {
+    if (recordBtn.dataset.mode !== "mic") return;
+    isHold = false;
+    holdTimeout = setTimeout(() => { isHold = true; handleStart(e); }, 200);
+  });
+  recordBtn.addEventListener("mouseup",   () => { clearTimeout(holdTimeout); if (isHold) handleEnd(); });
+  recordBtn.addEventListener("mouseleave",() => { clearTimeout(holdTimeout); if (isHold) handleEnd(); });
+  recordBtn.addEventListener("touchstart",(e) => {
+    if (recordBtn.dataset.mode !== "mic") return;
+    isHold = false;
+    holdTimeout = setTimeout(() => { isHold = true; handleStart(e); }, 200);
+  }, { passive: false });
+  recordBtn.addEventListener("touchend",  () => { clearTimeout(holdTimeout); if (isHold) handleEnd(); }, { passive: false });
+  document.addEventListener("mousemove",  (e) => { if (isRecording) handleMove(e); });
+  document.addEventListener("touchmove",  (e) => { if (isRecording) handleMove(e); }, { passive: false });
+  input.addEventListener("input", () => {
+    if (!isTyping) socket.emit("typing", username);
+    isTyping = true;
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => {
+      socket.emit("stop typing", username);
+      isTyping = false;
+    }, 1000);
+  });
+
+  function updateIndicator() {
+    if (recordingUsers.size > 0) {
+      typingIndicator.innerHTML = `<div class="typing-dots-wrap"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>&nbsp;${[...recordingUsers][0]} is recording…`;
+    } else if (usersTyping.size > 0) {
+      typingIndicator.innerHTML = `<div class="typing-dots-wrap"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>&nbsp;${[...usersTyping][0]} is typing…`;
+    } else {
+      typingIndicator.innerHTML = "";
+    }
+  }
+
+  socket.on("typing",         user => { if (user !== username) { usersTyping.add(user); updateIndicator(); } });
+  socket.on("stop typing",    user => { if (user !== username) { usersTyping.delete(user); updateIndicator(); } });
+  socket.on("start recording",user => { if (user !== username) { recordingUsers.add(user); updateIndicator(); } });
+  socket.on("stop recording", user => { if (user !== username) { recordingUsers.delete(user); updateIndicator(); } });
+  socket.on("update users", (userList) => {
+    updateTopbarPartner(userList);
+    if (window.innerWidth >= 600) {
+      activeUsers = new Set(userList);
+      updatePCActiveUsersList();
+    } else {
+      const joined = userList.filter(u => !previousUsers.includes(u));
+      const left   = previousUsers.filter(u => !userList.includes(u));
+      joined.forEach(u => showMobileNotification(u, "joined 💕"));
+      left.forEach(u   => showMobileNotification(u, "left"));
+    }
+    previousUsers = userList;
+  });
+  function refreshRoomCode() {
+    socket.emit("check room", null, (roomStatus) => {
+      if (!roomStatus || !roomStatus.code) {
+        if (roomCodeBtn) roomCodeBtn.style.display = "none";
+        return;
+      }
+      roomCode = roomStatus.code;
+      if (roomCodeBtn) {
+        roomCodeBtn.style.display = "flex";
+        if (roomCodeText) roomCodeText.textContent = `Room: ${roomCode}`;
+      }
+    });
+  }
+
+  refreshRoomCode();
+  socket.on("update users", refreshRoomCode);
+  if (roomCodeBtn) roomCodeBtn.addEventListener("click", () => {
+    if (!roomCode) return;
+    navigator.clipboard?.writeText(roomCode);
+    showToast(`Room code ${roomCode} copied!`);
+  });
+  (function setupReplyTriggers() {
+    let swipeStartX = 0, swipeStartY = 0, mouseDown = false;
+    const threshold = 75;
+    messages.addEventListener("touchstart", (e) => {
+      swipeStartX = e.touches[0].clientX;
+      swipeStartY = e.touches[0].clientY;
+    }, { passive: true });
+    messages.addEventListener("touchmove", (e) => {
+      const dx = e.touches[0].clientX - swipeStartX;
+      const dy = e.touches[0].clientY - swipeStartY;
+      if (Math.abs(dy) > Math.abs(dx)) return;
+      if (dx > threshold) {
+        const li = e.target.closest("li");
+        if (li) { e.preventDefault(); triggerReply(li); swipeStartX = e.touches[0].clientX; }
+      }
+    }, { passive: false });
+    messages.addEventListener("mousedown",  (e) => { mouseDown = true; swipeStartX = e.clientX; swipeStartY = e.clientY; });
+    messages.addEventListener("mousemove",  (e) => {
+      if (!mouseDown) return;
+      const dx = e.clientX - swipeStartX;
+      const dy = e.clientY - swipeStartY;
+      if (Math.abs(dy) > Math.abs(dx)) return;
+      if (dx > threshold) {
+        const li = e.target.closest("li");
+        if (li) { triggerReply(li); mouseDown = false; }
+      }
+    });
+    messages.addEventListener("mouseup",    () => { mouseDown = false; });
+    messages.addEventListener("mouseleave", () => { mouseDown = false; });
+  })();
+
+  function triggerReply(messageEl) {
+    if (!messageEl) return;
+    const strong = messageEl.querySelector("strong");
+    const user   = messageEl.dataset.user || (strong ? strong.textContent.replace(/:$/, "").trim() : "");
+    const text   = messageEl.dataset.text || "";
+    repliedMessage = { user, text, id: messageEl.dataset.id };
+    if (repliedMessageText) repliedMessageText.textContent = `${user}: ${text}`;
+    if (replyBar) replyBar.style.display = "flex";
+    messageEl.classList.add("replying");
+    setTimeout(() => messageEl.classList.remove("replying"), 450);
+    input.focus();
+  }
+
+  function clearReply() {
+    repliedMessage = null;
+    if (replyBar) replyBar.style.display = "none";
+  }
+
+  if (cancelReplyBtn) cancelReplyBtn.addEventListener("click", clearReply);
+  function createFlower() {
+    const wrapper = document.createElement("div");
+    wrapper.classList.add("flower-wrapper");
+    const flower  = document.createElement("div");
+    flower.classList.add("flower");
+    flower.textContent = ["🌸","🌺","🌹","💐","🌼"][Math.floor(Math.random()*5)];
+    wrapper.style.left = Math.random() * 100 + "vw";
+    const fd = 4 + Math.random() * 3;
+    wrapper.style.animationDuration = fd + "s";
+    flower.style.animationDuration  = `${2+Math.random()*2}s, ${3+Math.random()*4}s`;
+    wrapper.appendChild(flower);
+    document.body.appendChild(wrapper);
+    setTimeout(() => wrapper.remove(), (fd + 1) * 1000);
+  }
+  const toggleFlowers = document.getElementById("toggle-flowers");
+  if (toggleFlowers) {
+    toggleFlowers.addEventListener("change", (e) => {
+      if (e.target.checked) {
+        flowerInterval = setInterval(createFlower, 500);
+      } else {
+        clearInterval(flowerInterval);
+        document.querySelectorAll(".flower-wrapper").forEach(f => f.remove());
+      }
+    });
+  }
+  function createTrail(x, y) {
+    const p = document.createElement("div");
+    p.classList.add("trail-particle");
+    p.style.left = x + "px";
+    p.style.top  = y + "px";
+    document.body.appendChild(p);
+    setTimeout(() => p.remove(), 900);
+  }
+
+  document.addEventListener("mousemove", (e) => { if (e.buttons) createTrail(e.clientX, e.clientY); });
+  document.addEventListener("touchmove", (e) => {
+    for (const t of e.touches) createTrail(t.clientX, t.clientY);
+  }, { passive: true });
+  const bgImages = Array.from({ length: 29 }, (_, i) => `/assets/l${i+1}.jpg`);
+  let bgIndex = 0;
+  const chatContainer = document.querySelector(".chat-container");
+  if (chatContainer && bgImages.length) {
+    chatContainer.style.backgroundImage = `url('${bgImages[0]}')`;
+    setInterval(() => {
+      bgIndex = (bgIndex + 1) % bgImages.length;
+      chatContainer.style.setProperty("--bg-next", `url('${bgImages[bgIndex]}')`);
+      chatContainer.classList.add("fade-bg");
+      setTimeout(() => {
+        chatContainer.style.backgroundImage = `url('${bgImages[bgIndex]}')`;
+        chatContainer.classList.remove("fade-bg");
+      }, 1500);
+    }, 25000);
+  }
+  function showMobileNotification(name, action) {
+    if (!name) return;
+    let container = document.getElementById("mobile-user-notifications");
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "mobile-user-notifications";
+      document.body.appendChild(container);
+    }
+    const el = document.createElement("div");
+    el.classList.add("mobile-notification");
+    el.textContent = action ? `${name} ${action}` : name;
+    container.appendChild(el);
+    setTimeout(() => el.remove(), 2400);
+  }
+
+  function showToast(msg) { showMobileNotification(msg, ""); }
+  function escapeHtml(str) {
+    if (!str && str !== 0) return "";
+    return String(str)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+  window.triggerReply = triggerReply;
 });
