@@ -26,12 +26,14 @@
 
 html, body {
   height: 100%;
-  font-family: 'DM Sans', sans-serif;
-  background: var(--bg-base);
-  color: var(--text-primary);
   overflow: hidden;
 }
 
+body {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
 
 #page-bg {
   position: fixed;
@@ -234,7 +236,7 @@ body {
 
 .chat-container {
   width: min(92vw, 960px);
-  height: min(94vh, 820px);
+  height: min(100dvh, 820px);
   display: flex;
   flex-direction: column;
   border-radius: var(--radius-xl);
@@ -1002,7 +1004,8 @@ audio {
 @media (max-width: 599px) {
   .chat-container {
     width: 100vw;
-    height: 100dvh;            
+    height: 100dvh;
+    max-height: 100dvh;          
     border-radius: 0;
     border: none;
   }
@@ -1051,7 +1054,7 @@ audio {
 
   #form {
     padding: 8px 10px;
-    padding-bottom: max(10px, env(safe-area-inset-bottom)); /* iOS safe area */
+  padding: 10px 14px calc(12px + env(safe-area-inset-bottom));
     gap: 6px;
   }
 
