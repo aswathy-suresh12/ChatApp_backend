@@ -1,16 +1,8 @@
-/* ═══════════════════════════════════════════════════════
-   authEngine.js — shared module for login & signup pages
-   Handles: music, particles, flute, card parallax, UI
-═══════════════════════════════════════════════════════ */
 
-/* ──────────────────────────────────────────────────────
-   MUSIC CONTROLLER
-────────────────────────────────────────────────────── */
 const MusicController = (() => {
   let audio      = null;
   let started    = false;
   let fadeTimer  = null;
-
   function _fadeTo(target, speed, onDone) {
     clearInterval(fadeTimer);
     fadeTimer = setInterval(() => {
@@ -52,17 +44,13 @@ const MusicController = (() => {
   return { init, start, fadeOut, isStarted };
 })();
 
-/* ──────────────────────────────────────────────────────
-   PARTICLE ENGINE
-────────────────────────────────────────────────────── */
+
 const ParticleEngine = (() => {
   let canvas, ctx;
   let particles = [];
   let running   = false;
   const isMobile = window.innerWidth <= 480;
   const MAX_AMBIENT = isMobile ? 0 : 18;
-
-  /* Particle factory */
   function _make(type, x, y) {
     const base = {
       x: x ?? Math.random() * window.innerWidth,
@@ -186,8 +174,6 @@ const ParticleEngine = (() => {
   function _tick() {
     if (!running) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    /* Refill ambient */
     if (!isMobile) {
       const ambients = particles.filter(p => p.type === 'ambient').length;
       if (ambients < MAX_AMBIENT && Math.random() < 0.08) {
@@ -214,15 +200,12 @@ const ParticleEngine = (() => {
     canvas = document.getElementById('particle-canvas');
     if (!canvas) return;
     ctx = canvas.getContext('2d');
-
     function resize() {
       canvas.width  = window.innerWidth;
       canvas.height = window.innerHeight;
     }
     resize();
     window.addEventListener('resize', resize);
-
-    /* Seed initial ambient particles */
     if (!isMobile) {
       for (let i = 0; i < 10; i++) {
         const p = _make('ambient');
@@ -234,8 +217,6 @@ const ParticleEngine = (() => {
     running = true;
     requestAnimationFrame(_tick);
   }
-
-  /* Burst at (x, y): gold + sparkles */
   function burst(x, y, count = 14) {
     if (isMobile) return;
     for (let i = 0; i < count; i++) {
@@ -248,8 +229,6 @@ const ParticleEngine = (() => {
       particles.push(_make('mist', x, y));
     }
   }
-
-  /* Continuous trail at (x, y) */
   function trail(x, y) {
     if (isMobile) return;
     if (Math.random() < 0.5) particles.push(_make('gold', x, y));
@@ -261,99 +240,74 @@ const ParticleEngine = (() => {
   return { init, burst, trail, stop };
 })();
 
-/* ──────────────────────────────────────────────────────
-   FLUTE ENGINE
-────────────────────────────────────────────────────── */
+
 const FluteEngine = (() => {
   let flute;
   let x, y, vx = 0, vy = 0;
   let running = false;
   let mouseX  = -999, mouseY = -999;
-
   const REPEL_RADIUS = 190;
   const REPEL_FORCE  = 0.75;
   const DRIFT        = 0.982;
   const MAX_SPEED    = 6.5;
-  const IDLE_DRIFT   = 0.008;  /* idle rotation oscillation speed */
-
+  const IDLE_DRIFT   = 0.008;  
   let idleAngle = 0;
-
   function init() {
     flute = document.querySelector('.divine-flute');
     if (!flute || window.innerWidth <= 768) return;
-
     x = window.innerWidth  * 0.55;
     y = window.innerHeight * 0.42;
     vx = (Math.random() - 0.5) * 1.5;
     vy = (Math.random() - 0.5) * 1.5;
-
     document.addEventListener('mousemove', (e) => {
       mouseX = e.clientX;
       mouseY = e.clientY;
-
       const rect = flute.getBoundingClientRect();
       const cx   = rect.left + rect.width  / 2;
       const cy   = rect.top  + rect.height / 2;
       const dx   = cx - e.clientX;
       const dy   = cy - e.clientY;
       const dist = Math.hypot(dx, dy) || 1;
-
       if (dist < REPEL_RADIUS) {
         const str = (REPEL_RADIUS - dist) / REPEL_RADIUS;
         vx += (dx / dist) * str * REPEL_FORCE;
         vy += (dy / dist) * str * REPEL_FORCE;
-
-        /* Glow intensity based on proximity */
         const glow = 14 + str * 20;
         const glowColor = `rgba(240,192,96,${0.5 + str * 0.4})`;
         flute.style.filter = `drop-shadow(0 0 ${glow}px ${glowColor}) drop-shadow(0 0 ${glow * 2}px rgba(180,160,255,${0.25 + str * 0.3}))`;
-
         ParticleEngine.trail(cx, cy);
       } else {
         flute.style.filter = '';
       }
     });
-
     running = true;
     _animate();
   }
 
   function _animate() {
     if (!running) return;
-
     vx *= DRIFT;
     vy *= DRIFT;
-
-    /* Clamp speed */
     const speed = Math.hypot(vx, vy);
     if (speed > MAX_SPEED) {
       vx = (vx / speed) * MAX_SPEED;
       vy = (vy / speed) * MAX_SPEED;
     }
-
     x += vx;
     y += vy;
-
-    /* Boundary bounce */
     const pad = 100;
     if (x < pad || x > window.innerWidth - pad) vx *= -0.75;
     if (y < pad || y > window.innerHeight - pad) vy *= -0.75;
     x = Math.max(pad, Math.min(window.innerWidth  - pad, x));
     y = Math.max(pad, Math.min(window.innerHeight - pad, y));
-
-    /* Idle drift rotation */
     idleAngle += IDLE_DRIFT;
     const velRotation  = vx * 2.2;
     const idleRotation = Math.sin(idleAngle) * 5;
     const rotation     = velRotation + idleRotation * (1 - Math.min(1, speed / 3));
-
-    /* Breathing scale */
     const breathScale  = 1 + Math.sin(idleAngle * 0.4) * 0.025;
-
     flute.style.left      = x + 'px';
     flute.style.top       = y + 'px';
     flute.style.transform = `translate(-50%, -50%) rotate(${rotation}deg) scale(${breathScale})`;
-
     requestAnimationFrame(_animate);
   }
 
@@ -367,24 +321,16 @@ const FluteEngine = (() => {
   return { init, burst };
 })();
 
-/* ──────────────────────────────────────────────────────
-   AUTH UI — Card parallax, feedback, transitions
-────────────────────────────────────────────────────── */
 const AuthUI = (() => {
   let card;
-
   function init() {
     card = document.querySelector('.auth-container');
     if (!card) return;
-
-    /* Ensure page-fade overlay exists */
     if (!document.getElementById('page-fade')) {
       const fade = document.createElement('div');
       fade.id = 'page-fade';
       document.body.appendChild(fade);
     }
-
-    /* Parallax tilt on desktop */
     if (window.innerWidth > 480) {
       document.addEventListener('mousemove', _tilt);
     }
@@ -399,30 +345,21 @@ const AuthUI = (() => {
     const dy    = (e.clientY - cy) / (rect.height / 2);
     const rotX  = -dy * 5;
     const rotY  =  dx * 5;
-
     card.style.transform = `perspective(900px) rotateX(${rotX}deg) rotateY(${rotY}deg)`;
     card.style.setProperty('--mx', (50 + dx * 30) + '%');
     card.style.setProperty('--my', (50 + dy * 30) + '%');
   }
 
   function showError(msg) {
-    /* Remove existing */
     card.querySelectorAll('.auth-error-msg').forEach(el => el.remove());
     card.classList.remove('shake');
-
     const el = document.createElement('div');
     el.className = 'auth-error-msg show';
     el.innerHTML = `<span>⚠</span> ${msg}`;
-
-    /* Insert before button */
     const btn = card.querySelector('button[type="submit"]');
     if (btn) btn.parentNode.insertBefore(el, btn);
-
-    /* Mark inputs */
     card.querySelectorAll('input').forEach(inp => inp.classList.add('error-input'));
     setTimeout(() => card.querySelectorAll('input').forEach(i => i.classList.remove('error-input')), 1800);
-
-    /* Shake card */
     void card.offsetWidth;
     card.classList.add('shake');
     setTimeout(() => card.classList.remove('shake'), 500);
@@ -451,7 +388,6 @@ const AuthUI = (() => {
   }
 
   function successTransition(url) {
-    /* Green flash on card */
     card.classList.add('success-flash');
     const rect = card.getBoundingClientRect();
     ParticleEngine.burst(
@@ -463,7 +399,6 @@ const AuthUI = (() => {
     _transitionOut(url, 400);
   }
 
-  /* Ripple on button click */
   function addRipple(btn, e) {
     const rect = btn.getBoundingClientRect();
     const ripple = document.createElement('span');
@@ -482,9 +417,7 @@ const AuthUI = (() => {
   return { init, showError, setLoading, successTransition, addRipple };
 })();
 
-/* ──────────────────────────────────────────────────────
-   INPUT BURST — fire particles when input focused
-────────────────────────────────────────────────────── */
+
 function bindInputBurst() {
   document.querySelectorAll('input').forEach(inp => {
     inp.addEventListener('focus', () => {
@@ -498,9 +431,7 @@ function bindInputBurst() {
   });
 }
 
-/* ──────────────────────────────────────────────────────
-   BOOT — call on DOMContentLoaded
-────────────────────────────────────────────────────── */
+
 function bootAuthEngine() {
   ParticleEngine.init();
   FluteEngine.init();
