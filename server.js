@@ -6,16 +6,12 @@ const path     = require("path");
 const bcrypt   = require("bcrypt");
 const jwt      = require("jsonwebtoken");
 const { Pool } = require("pg");
-
 const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server, { cors: { origin: "*" } });
-
 app.use(express.json());
 app.get("/", (req, res) => res.redirect("/signup.html"));
 app.use(express.static(path.join(__dirname, "public")));
-
-/* ── PostgreSQL pool ─────────────────────────────────── */
 const pool = new Pool(
   process.env.DATABASE_URL
     ? { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } }
@@ -29,7 +25,6 @@ const pool = new Pool(
       }
 );
 
-/* ── DB init ─────────────────────────────────────────── */
 async function initDB() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -60,10 +55,7 @@ async function initDB() {
   `);
   console.log("✅ Tables ready");
 }
-
 initDB().catch(err => console.error("❌ DB init failed:", err));
-
-/* ── Room code generator ─────────────────────────────── */
 async function generateRoomCode() {
   let code, exists = true;
   while (exists) {
@@ -74,7 +66,6 @@ async function generateRoomCode() {
   return code;
 }
 
-/* ── Broadcast active users ──────────────────────────── */
 async function broadcastActiveUsers(roomSockets, roomId) {
   const userIds = Array.from(roomSockets.get(roomId) || []);
   if (!userIds.length) return;
@@ -85,9 +76,6 @@ async function broadcastActiveUsers(roomSockets, roomId) {
   io.to(`room_${roomId}`).emit("update users", res.rows.map(r => r.username));
 }
 
-/* ════════════════════════════════════════════════════════
-   AUTH ROUTES
-════════════════════════════════════════════════════════ */
 app.post("/signup", async (req, res) => {
   const { username, password, room_code } = req.body;
   if (!username || !password) return res.status(400).send("Missing fields");
@@ -174,9 +162,7 @@ app.post("/generate-room-code", async (req, res) => {
   }
 });
 
-/* ════════════════════════════════════════════════════════
-   SOCKET.IO AUTH MIDDLEWARE
-════════════════════════════════════════════════════════ */
+
 io.use(async (socket, next) => {
   const token = socket.handshake.auth.token;
   if (!token) return next(new Error("No token"));
@@ -189,29 +175,16 @@ io.use(async (socket, next) => {
   }
 });
 
-/* ════════════════════════════════════════════════════════
-   SOCKET MAPS
-════════════════════════════════════════════════════════ */
-const userSockets = new Map(); // userId → Set<socketId>
-const roomSockets = new Map(); // roomId → Set<userId>
-
-/* ════════════════════════════════════════════════════════
-   CONNECTION
-════════════════════════════════════════════════════════ */
+const userSockets = new Map(); 
+const roomSockets = new Map(); 
 io.on("connection", async (socket) => {
   const userId = socket.user_id;
-
-  /* Resolve username */
   const userRes  = await pool.query("SELECT username FROM users WHERE user_id=$1", [userId]);
   if (!userRes.rows.length) return;
   const username = userRes.rows[0].username;
   console.log(`User connected: ${username} (${userId})`);
-
-  /* Register socket */
   if (!userSockets.has(userId)) userSockets.set(userId, new Set());
   userSockets.get(userId).add(socket.id);
-
-  /* Resolve room */
   const roomRes = await pool.query(
     "SELECT * FROM rooms WHERE user_1_id=$1 OR user_2_id=$1", [userId]
   );
@@ -220,16 +193,12 @@ io.on("connection", async (socket) => {
     return;
   }
   const roomId = roomRes.rows[0].room_id;
-
-  /* Join socket room */
   userSockets.get(userId).forEach(sid => {
     io.sockets.sockets.get(sid)?.join(`room_${roomId}`);
   });
 
   if (!roomSockets.has(roomId)) roomSockets.set(roomId, new Set());
   roomSockets.get(roomId).add(userId);
-
-  /* Send message history */
   const history = await pool.query(
     `SELECT m.message_id, m.message_content, m.timestamp,
             m.sender_id, m.message_type, m.media_data,
@@ -241,10 +210,7 @@ io.on("connection", async (socket) => {
     [roomId]
   );
   socket.emit("joined_room", { room_id: roomId, messages: history.rows });
-
   await broadcastActiveUsers(roomSockets, roomId);
-
-  /* ── Chat message ─────────────────────────────────── */
   socket.on("chat message", async (msg) => {
     if (!msg || typeof msg.text !== "string" || !msg.text.trim()) return;
     const insert = await pool.query(
@@ -261,7 +227,6 @@ io.on("connection", async (socket) => {
     });
   });
 
-  /* ── Voice message ────────────────────────────────── */
   socket.on("voice message", async (msg) => {
     const insert = await pool.query(
       `INSERT INTO messages (room_id, sender_id, message_content, message_type)
@@ -271,9 +236,7 @@ io.on("connection", async (socket) => {
     io.to(`room_${roomId}`).emit("voice message", { ...msg, id: insert.rows[0].message_id });
   });
 
-  /* ── Image messages ───────────────────────────────── */
-  const images = new Map(); // mediaId → { image, viewOnce, viewed }
-
+  const images = new Map();
   socket.on("send image", (data) => {
     const mediaId = Date.now().toString();
     images.set(mediaId, { image: data.image, viewOnce: data.viewOnce, viewed: false });
@@ -293,9 +256,7 @@ io.on("connection", async (socket) => {
     if (img.viewOnce) { img.viewed = true; setTimeout(() => images.delete(mediaId), 2000); }
   });
 
-  /* ── Emoji reactions ──────────────────────────────── */
   socket.on("react message", (data) => {
-    // Broadcast to everyone in the room (including sender)
     io.to(`room_${roomId}`).emit("react message", {
       msgId: data.msgId,
       emoji: data.emoji,
@@ -303,16 +264,70 @@ io.on("connection", async (socket) => {
     });
   });
 
-  /* ── Delete message ───────────────────────────────── */
   socket.on("delete message", async (data) => {
-    await pool.query(
-      "DELETE FROM messages WHERE message_id=$1 AND sender_id=$2",
-      [data.targetId, userId]
-    );
+    if (data.targetId) {
+      await pool.query(
+        "DELETE FROM messages WHERE message_id=$1 AND sender_id=$2",
+        [data.targetId, userId]
+      );
+    }
     io.to(`room_${roomId}`).emit("delete message", data);
   });
 
-  /* ── Room code check ──────────────────────────────── */
+  socket.on("clear chat", async () => {
+    try {
+      await pool.query("DELETE FROM messages WHERE room_id=$1", [roomId]);
+      io.to(`room_${roomId}`).emit("clear chat");
+      console.log(`Chat cleared in room ${roomId} by ${username}`);
+    } catch (err) {
+      console.error("Clear chat error:", err);
+    }
+  });
+
+  socket.on("ndn start", (data) => {
+    io.to(`room_${roomId}`).emit("ndn start", {
+      trackIndex: data.trackIndex || 0,
+      startTime:  data.startTime  || Date.now()
+    });
+    console.log(`NDN start track ${data.trackIndex} in room ${roomId} by ${username}`);
+  });
+
+  socket.on("ndn stop", () => {
+    io.to(`room_${roomId}`).emit("ndn stop");
+  });
+
+  socket.on("ndn next", (data) => {
+    io.to(`room_${roomId}`).emit("ndn next", { startTime: data.startTime || Date.now() });
+  });
+
+  socket.on("ndn prev", (data) => {
+    io.to(`room_${roomId}`).emit("ndn prev", { startTime: data.startTime || Date.now() });
+  });
+
+  socket.on("ndn jump", (data) => {
+    io.to(`room_${roomId}`).emit("ndn jump", {
+      trackIndex: data.trackIndex || 0,
+      startTime:  data.startTime  || Date.now()
+    });
+  });
+
+  socket.on("ndn dark", () => {
+    io.to(`room_${roomId}`).emit("ndn dark");
+  });
+
+  socket.on("ndn return", () => {
+    io.to(`room_${roomId}`).emit("ndn return");
+  });
+
+  socket.on("admin command", (data) => {
+    socket.to(`room_${roomId}`).emit("admin command", data);
+    console.log(`Admin command: ${data.action} by ${username}`);
+  });
+
+  socket.on("return bg", () => {
+    io.to(`room_${roomId}`).emit("return bg");
+  });
+
   socket.on("check room", async (_, callback) => {
     try {
       const r = await pool.query(
@@ -330,13 +345,10 @@ io.on("connection", async (socket) => {
     }
   });
 
-  /* ── Typing ───────────────────────────────────────── */
   socket.on("typing",         () => socket.to(`room_${roomId}`).emit("typing", username));
   socket.on("stop typing",    () => socket.to(`room_${roomId}`).emit("stop typing", username));
   socket.on("start recording",() => socket.to(`room_${roomId}`).emit("start recording", username));
   socket.on("stop recording", () => socket.to(`room_${roomId}`).emit("stop recording", username));
-
-  /* ── Disconnect ───────────────────────────────────── */
   socket.on("disconnect", async () => {
     console.log(`User disconnected: ${username}`);
     const sockSet = userSockets.get(userId);
@@ -350,9 +362,6 @@ io.on("connection", async (socket) => {
     }
   });
 });
-
-/* ── Health check ────────────────────────────────────── */
 app.get("/ping", (_, res) => res.send("Server is alive ✅"));
-
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
