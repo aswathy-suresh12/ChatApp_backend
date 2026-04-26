@@ -56,6 +56,7 @@ async function initDB() {
   console.log("✅ Tables ready");
 }
 initDB().catch(err => console.error("❌ DB init failed:", err));
+
 async function generateRoomCode() {
   let code, exists = true;
   while (exists) {
@@ -162,7 +163,6 @@ app.post("/generate-room-code", async (req, res) => {
   }
 });
 
-
 io.use(async (socket, next) => {
   const token = socket.handshake.auth.token;
   if (!token) return next(new Error("No token"));
@@ -175,16 +175,19 @@ io.use(async (socket, next) => {
   }
 });
 
-const userSockets = new Map(); 
-const roomSockets = new Map(); 
+const userSockets = new Map();
+const roomSockets = new Map();
+
 io.on("connection", async (socket) => {
   const userId = socket.user_id;
   const userRes  = await pool.query("SELECT username FROM users WHERE user_id=$1", [userId]);
   if (!userRes.rows.length) return;
   const username = userRes.rows[0].username;
   console.log(`User connected: ${username} (${userId})`);
+
   if (!userSockets.has(userId)) userSockets.set(userId, new Set());
   userSockets.get(userId).add(socket.id);
+
   const roomRes = await pool.query(
     "SELECT * FROM rooms WHERE user_1_id=$1 OR user_2_id=$1", [userId]
   );
@@ -199,6 +202,7 @@ io.on("connection", async (socket) => {
 
   if (!roomSockets.has(roomId)) roomSockets.set(roomId, new Set());
   roomSockets.get(roomId).add(userId);
+
   const history = await pool.query(
     `SELECT m.message_id, m.message_content, m.timestamp,
             m.sender_id, m.message_type, m.media_data,
@@ -211,6 +215,8 @@ io.on("connection", async (socket) => {
   );
   socket.emit("joined_room", { room_id: roomId, messages: history.rows });
   await broadcastActiveUsers(roomSockets, roomId);
+
+  // ── Chat messages ────────────────────────────────────────────
   socket.on("chat message", async (msg) => {
     if (!msg || typeof msg.text !== "string" || !msg.text.trim()) return;
     const insert = await pool.query(
@@ -227,20 +233,36 @@ io.on("connection", async (socket) => {
     });
   });
 
+  // ── Voice messages ───────────────────────────────────────────
+  // FIX: use socket.to() so only the RECEIVER gets the event.
+  // The sender already appended their own voice message locally in script.js.
   socket.on("voice message", async (msg) => {
-    const insert = await pool.query(
-      `INSERT INTO messages (room_id, sender_id, message_content, message_type)
-       VALUES ($1, $2, '[voice]', 'voice') RETURNING *`,
-      [roomId, userId, "[voice]"]
-    );
-    io.to(`room_${roomId}`).emit("voice message", { ...msg, id: insert.rows[0].message_id });
+    try {
+      const insert = await pool.query(
+        `INSERT INTO messages (room_id, sender_id, message_content, message_type)
+         VALUES ($1, $2, '[voice]', 'voice') RETURNING *`,
+        [roomId, userId]
+      );
+      // Emit only to others in the room (not the sender)
+      socket.to(`room_${roomId}`).emit("voice message", {
+        ...msg,
+        user: username,              // always set server-side for safety
+        id:   insert.rows[0].message_id
+      });
+    } catch (err) {
+      console.error("Voice message error:", err);
+    }
   });
 
+  // ── Image messages ───────────────────────────────────────────
+  // FIX: use socket.to() so only the RECEIVER gets the event.
+  // The sender already appended their own image locally in script.js.
   const images = new Map();
   socket.on("send image", (data) => {
     const mediaId = Date.now().toString();
     images.set(mediaId, { image: data.image, viewOnce: data.viewOnce, viewed: false });
-    io.to(`room_${roomId}`).emit("new image", {
+    // Emit only to others in the room (not the sender)
+    socket.to(`room_${roomId}`).emit("new image", {
       sender:   username,
       mediaId,
       viewOnce: data.viewOnce,
@@ -256,6 +278,7 @@ io.on("connection", async (socket) => {
     if (img.viewOnce) { img.viewed = true; setTimeout(() => images.delete(mediaId), 2000); }
   });
 
+  // ── Reactions ────────────────────────────────────────────────
   socket.on("react message", (data) => {
     io.to(`room_${roomId}`).emit("react message", {
       msgId: data.msgId,
@@ -264,6 +287,7 @@ io.on("connection", async (socket) => {
     });
   });
 
+  // ── Delete message ───────────────────────────────────────────
   socket.on("delete message", async (data) => {
     if (data.targetId) {
       await pool.query(
@@ -274,6 +298,7 @@ io.on("connection", async (socket) => {
     io.to(`room_${roomId}`).emit("delete message", data);
   });
 
+  // ── Clear chat ───────────────────────────────────────────────
   socket.on("clear chat", async () => {
     try {
       await pool.query("DELETE FROM messages WHERE room_id=$1", [roomId]);
@@ -284,6 +309,7 @@ io.on("connection", async (socket) => {
     }
   });
 
+  // ── NDN / Music ──────────────────────────────────────────────
   socket.on("ndn start", (data) => {
     io.to(`room_${roomId}`).emit("ndn start", {
       trackIndex: data.trackIndex || 0,
@@ -319,6 +345,7 @@ io.on("connection", async (socket) => {
     io.to(`room_${roomId}`).emit("ndn return");
   });
 
+  // ── Admin ────────────────────────────────────────────────────
   socket.on("admin command", (data) => {
     socket.to(`room_${roomId}`).emit("admin command", data);
     console.log(`Admin command: ${data.action} by ${username}`);
@@ -328,6 +355,7 @@ io.on("connection", async (socket) => {
     io.to(`room_${roomId}`).emit("return bg");
   });
 
+  // ── Room code check ──────────────────────────────────────────
   socket.on("check room", async (_, callback) => {
     try {
       const r = await pool.query(
@@ -345,10 +373,13 @@ io.on("connection", async (socket) => {
     }
   });
 
+  // ── Typing / Recording indicators ───────────────────────────
   socket.on("typing",         () => socket.to(`room_${roomId}`).emit("typing", username));
   socket.on("stop typing",    () => socket.to(`room_${roomId}`).emit("stop typing", username));
   socket.on("start recording",() => socket.to(`room_${roomId}`).emit("start recording", username));
   socket.on("stop recording", () => socket.to(`room_${roomId}`).emit("stop recording", username));
+
+  // ── Disconnect ───────────────────────────────────────────────
   socket.on("disconnect", async () => {
     console.log(`User disconnected: ${username}`);
     const sockSet = userSockets.get(userId);
@@ -362,6 +393,7 @@ io.on("connection", async (socket) => {
     }
   });
 });
+
 app.get("/ping", (_, res) => res.send("Server is alive ✅"));
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
