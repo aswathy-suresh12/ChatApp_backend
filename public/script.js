@@ -15,6 +15,7 @@ document.addEventListener("DOMContentLoaded", () => {
       window.location.href = "/login.html";
     }
   });
+
   const form               = document.getElementById("form");
   const input              = document.getElementById("input");
   const messages           = document.getElementById("messages");
@@ -38,6 +39,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const onlineDot          = document.getElementById("online-dot");
   const roomCodeBtn        = document.getElementById("room-code-btn");
   const roomCodeText       = document.getElementById("room-code-text");
+
   let messageCounter    = 0;
   let repliedMessage    = null;
   let musicEnabled      = false;
@@ -62,10 +64,9 @@ document.addEventListener("DOMContentLoaded", () => {
   let roomCode          = null;
   let isAdmin           = false;
   let commandCooldown   = false;
-  const ADMIN_USERS = ["Thejus", "Nandhana"];
-  function isAdminUser() {
-    return ADMIN_USERS.includes(username) || isAdmin;
-  }
+
+  const ADMIN_USERS = ["Thejus", "Nandhana","Anjana"];
+  function isAdminUser() {return ADMIN_USERS.includes(username) || isAdmin;}
   const REACTIONS = ["❤️", "😂", "🥺", "🔥", "👏", "😍"];
   const musicUrls = [
     "https://files.catbox.moe/mi9igu.mp4",
@@ -127,8 +128,8 @@ document.addEventListener("DOMContentLoaded", () => {
     "https://files.catbox.moe/prw3g6.mp4",
     "https://files.catbox.moe/j2ncnz.mp4",
     "https://files.catbox.moe/o1gvpb.mp4"
-   
   ];
+
   const commands = {
     cls:      (args) => handleClearChat(args),
     dlt:      (args) => handleDeleteMessage(args),
@@ -139,7 +140,7 @@ document.addEventListener("DOMContentLoaded", () => {
     help:     (args) => handleHelp(args),
   };
 
-    function handleInput(text) {  
+  function handleInput(text) {
     const trimmed = text.trim();
     const raw = trimmed.startsWith("/") ? trimmed.slice(1) : trimmed;
     const parts   = raw.split(/\s+/);
@@ -155,23 +156,16 @@ document.addEventListener("DOMContentLoaded", () => {
       commands[cmd](args);
       return true;
     }
-
     return false;
   }
 
   function handleClearChat() {
-    if (!isAdminUser()) {
-      showToast("❌ Admin only command");
-      return;
-    }
+    if (!isAdminUser()) { showToast("❌ Admin only command"); return; }
     socket.emit("clear chat");
   }
 
   function handleDeleteMessage() {
-    if (!repliedMessage) {
-      showToast("↩️ Reply to a message first, then type dlt");
-      return;
-    }
+    if (!repliedMessage) { showToast("↩️ Reply to a message first, then type dlt"); return; }
     socket.emit("delete message", {
       targetUser:  repliedMessage.user,
       targetText:  repliedMessage.text,
@@ -183,12 +177,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function handleNDNCommand(args) {
-    if (!isAdminUser()) {
-      showToast("❌ Admin only command");
-      return;
-    }
+    if (!isAdminUser()) { showToast("❌ Admin only command"); return; }
     const action = (args[0] || "").toLowerCase();
-
     switch (action) {
       case "start":
         socket.emit("ndn start", { trackIndex: currentTrackIndex, startTime: Date.now() });
@@ -239,18 +229,12 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!isAdminUser()) { showToast("❌ Admin only"); return; }
     socket.emit("return bg");
   }
+
   function handleHelp() {
-    const helpText = [
-      "cls — clear chat (admin)",
-      "dlt — delete replied message",
-      "ndn start/stop/play N/next/prev — music",
-      "ndn dark/return — dark overlay toggle",
-      "returnbg — reset background",
-      "promote / demote — admin control",
-    ].join("\n");
-    showToast("📋 Commands loaded — see console");
-    console.log("── CHATAPP COMMANDS ──\n" + helpText);
+    showToast(" Commands loaded — see console");
+    console.log("── CHATAPP COMMANDS ──\ncls — clear chat (admin)\ndlt — delete replied message\nndn start/stop/play N/next/prev — music\nndn dark/return — dark overlay toggle\nreturnbg — reset background\npromote / demote — admin control");
   }
+
   socket.on("ndn start", (data) => {
     musicEnabled = true;
     if (musicController) musicController.style.display = "flex";
@@ -265,13 +249,11 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   socket.on("ndn next", (data) => {
-    const nextIdx = ((currentTrackIndex + 1) % musicUrls.length);
-    syncPlay(nextIdx, data.startTime);
+    syncPlay((currentTrackIndex + 1) % musicUrls.length, data.startTime);
   });
 
   socket.on("ndn prev", (data) => {
-    const prevIdx = ((currentTrackIndex - 1 + musicUrls.length) % musicUrls.length);
-    syncPlay(prevIdx, data.startTime);
+    syncPlay((currentTrackIndex - 1 + musicUrls.length) % musicUrls.length, data.startTime);
   });
 
   socket.on("ndn jump", (data) => {
@@ -291,13 +273,8 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   socket.on("admin command", (data) => {
-    if (data.action === "promote") {
-      isAdmin = true;
-      showToast("👑 You've been promoted to admin");
-    } else if (data.action === "demote") {
-      isAdmin = false;
-      showToast("🔻 Admin access removed");
-    }
+    if (data.action === "promote") { isAdmin = true; showToast("👑 You've been promoted to admin"); }
+    else if (data.action === "demote") { isAdmin = false; showToast("🔻 Admin access removed"); }
   });
 
   socket.on("return bg", () => {
@@ -325,14 +302,13 @@ document.addEventListener("DOMContentLoaded", () => {
     currentAudio.currentTime = Math.max(0, elapsed);
     currentAudio.play().catch(() => {
       showToast("🎵 Tap anywhere to start synced music");
-      const resume = () => { currentAudio.play().catch(() => {}); document.removeEventListener("click", resume); };
-      document.addEventListener("click", resume, { once: true });
+      document.addEventListener("click", () => currentAudio.play().catch(() => {}), { once: true });
     });
-
     if (trackNameSpan) trackNameSpan.textContent = `Track ${currentTrackIndex + 1}`;
     if (musicController) musicController.style.display = "flex";
     currentAudio.onended = () => syncPlay(currentTrackIndex + 1, Date.now());
   }
+
   function playTrack(index) {
     if (currentAudio) currentAudio.pause();
     currentTrackIndex = ((index % musicUrls.length) + musicUrls.length) % musicUrls.length;
@@ -368,6 +344,8 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   if (nextBtn) nextBtn.addEventListener("click", () => playTrack(currentTrackIndex + 1));
   if (prevBtn) prevBtn.addEventListener("click", () => playTrack(currentTrackIndex - 1));
+
+  // ── Topbar partner display ───────────────────────────────────
   function updateTopbarPartner(userList) {
     const partner = userList.find(u => u !== username);
     if (!partner) {
@@ -377,13 +355,14 @@ document.addEventListener("DOMContentLoaded", () => {
       if (onlineDot) onlineDot.style.display = "none";
     } else {
       partnerName = partner;
-      partnerNameDisplay.textContent    = partner + " 💕";
-      partnerStatusText.textContent     = "Online now";
-      partnerStatusText.style.color     = "#4ade80";
-      partnerAvatar.textContent         = partner.charAt(0).toUpperCase();
+      partnerNameDisplay.textContent = partner + " 💕";
+      partnerStatusText.textContent  = "Online now";
+      partnerStatusText.style.color  = "#4ade80";
+      partnerAvatar.textContent      = partner.charAt(0).toUpperCase();
       if (onlineDot) onlineDot.style.display = "block";
     }
   }
+
   function updatePCActiveUsersList() {
     const usersList = document.getElementById("users-list");
     if (!usersList) return;
@@ -395,6 +374,7 @@ document.addEventListener("DOMContentLoaded", () => {
       usersList.appendChild(li);
     });
   }
+
   socket.on("joined_room", (data) => {
     if (!data.messages) return;
     messages.innerHTML = "";
@@ -425,7 +405,6 @@ document.addEventListener("DOMContentLoaded", () => {
       av.textContent = (msgObj.user || "?").charAt(0).toUpperCase();
       row.appendChild(av);
     }
-
     const wrap = document.createElement("div");
     wrap.classList.add("msg-bubble-wrap");
     const li = document.createElement("li");
@@ -447,7 +426,6 @@ document.addEventListener("DOMContentLoaded", () => {
       li.classList.add("glow");
       li.addEventListener("animationend", () => li.classList.remove("glow"), { once: true });
     }
-
     const heartToggle = document.getElementById("toggle-heart");
     if (animate && heartToggle && heartToggle.checked) {
       const heart = document.createElement("div");
@@ -455,9 +433,7 @@ document.addEventListener("DOMContentLoaded", () => {
       li.appendChild(heart);
       setTimeout(() => heart.remove(), 700);
     }
-
     wrap.appendChild(li);
-
     const meta = document.createElement("div");
     meta.classList.add("msg-meta");
     meta.innerHTML = `<span>${formatTime(msgObj.ts)}</span>${isSent ? '<span class="read-ticks">✓✓</span>' : ""}`;
@@ -483,28 +459,19 @@ document.addEventListener("DOMContentLoaded", () => {
     const picker = document.createElement("div");
     picker.classList.add("reaction-picker");
     Object.assign(picker.style, {
-      position: "absolute",
-      zIndex: "200",
+      position: "absolute", zIndex: "200",
       background: "rgba(14,8,22,0.92)",
       border: "0.5px solid rgba(255,255,255,0.12)",
-      borderRadius: "24px",
-      padding: "6px 8px",
-      display: "flex",
-      gap: "6px",
+      borderRadius: "24px", padding: "6px 8px",
+      display: "flex", gap: "6px",
       boxShadow: "0 8px 28px rgba(0,0,0,0.5)",
       backdropFilter: "blur(20px)",
       animation: "msgSlideIn 0.2s ease both"
     });
-
     REACTIONS.forEach(emoji => {
       const btn = document.createElement("span");
       btn.textContent = emoji;
-      Object.assign(btn.style, {
-        fontSize: "20px",
-        cursor: "pointer",
-        transition: "transform 0.15s",
-        userSelect: "none"
-      });
+      Object.assign(btn.style, { fontSize: "20px", cursor: "pointer", transition: "transform 0.15s", userSelect: "none" });
       btn.addEventListener("mouseenter", () => btn.style.transform = "scale(1.3)");
       btn.addEventListener("mouseleave", () => btn.style.transform = "scale(1)");
       btn.addEventListener("click", (e) => {
@@ -515,7 +482,6 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       picker.appendChild(btn);
     });
-
     const bubbleRect = bubble.getBoundingClientRect();
     const chatRect   = document.querySelector(".chat-container").getBoundingClientRect();
     picker.style.left = Math.max(0, bubbleRect.left - chatRect.left) + "px";
@@ -527,8 +493,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function addReaction(reactionBar, emoji) {
-    const existing = [...reactionBar.querySelectorAll(".reaction-chip")]
-      .find(c => c.dataset.emoji === emoji);
+    const existing = [...reactionBar.querySelectorAll(".reaction-chip")].find(c => c.dataset.emoji === emoji);
     if (existing) {
       const count = parseInt(existing.dataset.count || "1") + 1;
       existing.dataset.count = count;
@@ -553,9 +518,10 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-    function appendImageMessage(data, type) {
-    const isSent = type === "sent";
-    const row    = document.createElement("div");
+  // ── Image messages ───────────────────────────────────────────
+  function appendImageMessage(data, isSent) {
+    const type = isSent ? "sent" : "received";
+    const row  = document.createElement("div");
     row.classList.add("msg-row", type);
     if (!isSent) {
       const av = document.createElement("div");
@@ -563,31 +529,46 @@ document.addEventListener("DOMContentLoaded", () => {
       av.textContent = (data.sender || "?").charAt(0).toUpperCase();
       row.appendChild(av);
     }
-
     const wrap = document.createElement("div");
     wrap.classList.add("msg-bubble-wrap");
     const li = document.createElement("li");
     li.classList.add(type);
+
     const img = document.createElement("img");
     img.classList.add("msg-img");
-    img.style.maxWidth = "220px";
-    if (data.viewOnce) {
-      img.src = "/assets/view-once.png";
-      img.onclick = () => socket.emit("view image", data.mediaId);
+    if (data.viewOnce && !isSent) {
+      // Receiver sees tap-to-view placeholder
+      img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='60'%3E%3Crect width='120' height='60' rx='8' fill='%23ffffff18'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23ffffff88' font-size='13' font-family='sans-serif'%3E👁 Tap to view%3C/text%3E%3C/svg%3E";
+      img.style.cursor = "pointer";
+      img.addEventListener("click", () => socket.emit("view image", data.mediaId));
     } else {
       img.src = data.image;
+      img.addEventListener("click", () => {
+        const viewer = document.createElement("div");
+        Object.assign(viewer.style, {
+          position:"fixed", inset:"0", background:"rgba(0,0,0,0.92)",
+          display:"flex", alignItems:"center", justifyContent:"center", zIndex:"9999"
+        });
+        const bigImg = document.createElement("img");
+        bigImg.src = data.image;
+        bigImg.style.cssText = "max-width:92vw;max-height:88vh;border-radius:12px;object-fit:contain;";
+        viewer.appendChild(bigImg);
+        viewer.addEventListener("click", () => viewer.remove());
+        document.body.appendChild(viewer);
+      });
     }
 
     li.appendChild(img);
     wrap.appendChild(li);
     const meta = document.createElement("div");
     meta.classList.add("msg-meta");
-    meta.textContent = formatTime();
+    meta.innerHTML = `<span>${formatTime()}</span>${isSent ? '<span class="read-ticks">✓✓</span>' : ""}`;
     wrap.appendChild(meta);
     row.appendChild(wrap);
     messages.appendChild(row);
     messages.scrollTop = messages.scrollHeight;
   }
+
   [imageBtn, document.getElementById("topbar-image-btn")].forEach(btn => {
     if (btn) btn.addEventListener("click", () => imageInput.click());
   });
@@ -599,46 +580,48 @@ document.addEventListener("DOMContentLoaded", () => {
     const reader = new FileReader();
     reader.onload = () => {
       const viewOnce = confirm("Send as view-once image?");
+      // Sender sees their own image immediately (local render)
+      appendImageMessage({ image: reader.result, sender: username, viewOnce: false }, true);
+      // Tell server to forward to receiver only (server uses socket.to())
       socket.emit("send image", { image: reader.result, viewOnce });
     };
     reader.readAsDataURL(file);
     imageInput.value = "";
   });
 
-    socket.on("new image",    (data) => appendImageMessage(data, data.sender === username ? "sent" : "received"));
-    socket.on("image expired", () => alert("This image has expired (view-once)"));
-    socket.on("image data", (data) => {
-    const img    = document.createElement("img");
-    img.src      = data.image;
-    img.style.cssText = "max-width:90%;border-radius:12px;";
+  // FIX: Server now uses socket.to() so this ONLY fires on the receiver's side.
+  // No sender-check needed anymore — the sender never receives this event.
+  socket.on("new image", (data) => {
+    appendImageMessage(data, false);
+  });
+
+  socket.on("image expired", () => alert("This image has expired (view-once)"));
+  socket.on("image data", (data) => {
     const viewer = document.createElement("div");
     Object.assign(viewer.style, {
-      position:"fixed",inset:"0",background:"rgba(0,0,0,0.92)",
-      display:"flex",alignItems:"center",justifyContent:"center",zIndex:"9999"
+      position:"fixed", inset:"0", background:"rgba(0,0,0,0.92)",
+      display:"flex", alignItems:"center", justifyContent:"center", zIndex:"9999"
     });
+    const img = document.createElement("img");
+    img.src   = data.image;
+    img.style.cssText = "max-width:92vw;max-height:88vh;border-radius:12px;object-fit:contain;";
     viewer.appendChild(img);
-    viewer.onclick = () => viewer.remove();
+    viewer.addEventListener("click", () => viewer.remove());
     document.body.appendChild(viewer);
   });
 
+  // ── Form submit ──────────────────────────────────────────────
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     const text = input.value.trim();
     if (!text) return;
-    if (handleInput(text)) {
-      input.value = "";
-      updateRecordBtn();
-      return;
-    }
-
+    if (handleInput(text)) { input.value = ""; updateRecordBtn(); return; }
     const msg = {
-      user: username,
-      text,
+      user: username, text,
       id: (messageCounter++).toString(),
       ts: Date.now(),
       replied: repliedMessage ? { user: repliedMessage.user, text: repliedMessage.text, id: repliedMessage.id } : null
     };
-
     socket.emit("chat message", msg);
     appendMessage(msg, "sent");
     clearReply();
@@ -650,12 +633,13 @@ document.addEventListener("DOMContentLoaded", () => {
   socket.on("chat message", (msg) => {
     if (msg.user !== username) appendMessage(msg, "received");
   });
+
   function animateDeleteMessage(li) {
-    const rect   = li.getBoundingClientRect();
-    const cx     = rect.left + rect.width / 2;
-    const cy     = rect.top  + rect.height / 2;
+    const rect = li.getBoundingClientRect();
+    const cx   = rect.left + rect.width  / 2;
+    const cy   = rect.top  + rect.height / 2;
     for (let i = 0; i < 40; i++) {
-      const p = document.createElement("div");
+      const p     = document.createElement("div");
       p.classList.add("glow-particle");
       const angle = Math.random() * 2 * Math.PI;
       const r     = Math.random() * 70 + 15;
@@ -665,7 +649,7 @@ document.addEventListener("DOMContentLoaded", () => {
       document.body.appendChild(p);
       setTimeout(() => p.remove(), 1200);
     }
-    const row = li.closest(".msg-row");
+    const row    = li.closest(".msg-row");
     const target = row || li;
     target.style.transition = "opacity 0.5s, transform 0.5s";
     target.style.opacity    = "0";
@@ -678,54 +662,66 @@ document.addEventListener("DOMContentLoaded", () => {
       const u  = li.dataset.user;
       const t  = li.dataset.text;
       const id = li.dataset.id;
-      if (id === String(data.targetId) || (u === data.targetUser && t === data.targetText)) {
-        animateDeleteMessage(li);
-      }
-      if (u === data.commandUser && t === data.commandText) {
-        animateDeleteMessage(li);
-      }
+      if (id === String(data.targetId) || (u === data.targetUser && t === data.targetText)) animateDeleteMessage(li);
+      if (u === data.commandUser && t === data.commandText) animateDeleteMessage(li);
     });
   });
-  function appendVoiceMessage(msg) {
-    const isSent = msg.user === username;
-    const row    = document.createElement("div");
-    row.classList.add("msg-row", isSent ? "sent" : "received");
+
+  // ── Voice messages ───────────────────────────────────────────
+  function appendVoiceMessage(msg, isSent) {
+    const type = isSent ? "sent" : "received";
+    const row  = document.createElement("div");
+    row.classList.add("msg-row", type);
     if (!isSent) {
       const av = document.createElement("div");
       av.classList.add("msg-mini-avatar");
       av.textContent = (msg.user || "?").charAt(0).toUpperCase();
       row.appendChild(av);
     }
-
     const wrap = document.createElement("div");
     wrap.classList.add("msg-bubble-wrap");
     const li = document.createElement("li");
-    li.classList.add(isSent ? "sent" : "received");
+    li.classList.add(type);
     li.dataset.user = msg.user;
     li.dataset.text = "voice";
     li.dataset.id   = msg.id;
-    const audio       = document.createElement("audio");
-    audio.controls    = true;
-    audio.src         = msg.audio;
-    audio.preload     = "none";
+    const audio    = document.createElement("audio");
+    audio.controls = true;
+    audio.src      = msg.audio;
+    audio.preload  = "none";
     li.appendChild(audio);
     wrap.appendChild(li);
     const meta = document.createElement("div");
     meta.classList.add("msg-meta");
-    meta.textContent = formatTime(msg.ts);
+    meta.innerHTML = `<span>${formatTime(msg.ts)}</span>${isSent ? '<span class="read-ticks">✓✓</span>' : ""}`;
     wrap.appendChild(meta);
     row.appendChild(wrap);
     messages.appendChild(row);
     messages.scrollTop = messages.scrollHeight;
   }
 
+  // FIX: Server now uses socket.to() so this ONLY fires on the receiver's side.
+  // No sender-check needed anymore — the sender never receives this event.
   socket.on("voice message", (msg) => {
-    if (msg.user !== username) appendVoiceMessage(msg);
+    appendVoiceMessage(msg, false);
   });
 
   async function ensureMediaStream() {
     if (!mediaStream) mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     return mediaStream;
+  }
+
+  function getSupportedMimeType() {
+    const types = [
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/ogg;codecs=opus",
+      "audio/mp4",
+    ];
+    for (const t of types) {
+      if (MediaRecorder.isTypeSupported(t)) return t;
+    }
+    return "";
   }
 
   async function handleStart(e) {
@@ -735,21 +731,32 @@ document.addEventListener("DOMContentLoaded", () => {
     startX      = (e.touches ? e.touches[0] : e).clientX;
     document.getElementById("slideToCancel").classList.add("show");
     recordBtn.classList.add("recording-pulse");
-    const stream  = await ensureMediaStream();
-    audioChunks   = [];
-    mediaRecorder = new MediaRecorder(stream);
+    const stream = await ensureMediaStream();
+    audioChunks  = [];
+    const mimeType = getSupportedMimeType();
+    mediaRecorder  = mimeType
+      ? new MediaRecorder(stream, { mimeType })
+      : new MediaRecorder(stream);
     mediaRecorder.canceled = false;
-    mediaRecorder.ondataavailable = (ev) => audioChunks.push(ev.data);
-    mediaRecorder.onstart         = () => socket.emit("start recording", username);
-    mediaRecorder.onstop          = () => {
+    mediaRecorder.ondataavailable = (ev) => { if (ev.data && ev.data.size > 0) audioChunks.push(ev.data); };
+    mediaRecorder.onstart = () => socket.emit("start recording", username);
+    mediaRecorder.onstop  = () => {
       recordBtn.classList.remove("recording-pulse");
       if (!mediaRecorder.canceled) {
-        const blob   = new Blob(audioChunks, { type: "audio/webm" });
+        const mtype  = mediaRecorder.mimeType || "audio/webm";
+        const blob   = new Blob(audioChunks, { type: mtype });
         const reader = new FileReader();
         reader.onloadend = () => {
-          const voiceMsg = { user: username, audio: reader.result, id: (messageCounter++).toString(), ts: Date.now() };
+          const voiceMsg = {
+            user:  username,
+            audio: reader.result,
+            id:    (messageCounter++).toString(),
+            ts:    Date.now()
+          };
+          // Emit to server (server forwards to receiver only via socket.to())
           socket.emit("voice message", voiceMsg);
-          appendVoiceMessage(voiceMsg);
+          // Sender sees their own voice message immediately (local render)
+          appendVoiceMessage(voiceMsg, true);
         };
         reader.readAsDataURL(blob);
       }
@@ -764,9 +771,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function handleMove(e) {
     if (!isRecording) return;
-    const curX  = (e.touches ? e.touches[0] : e).clientX;
-    const diff  = startX - curX;
-    const sc    = document.getElementById("slideToCancel");
+    const curX = (e.touches ? e.touches[0] : e).clientX;
+    const diff = startX - curX;
+    const sc   = document.getElementById("slideToCancel");
     if (diff > 80) {
       canceled = true;
       sc.classList.add("canceling");
@@ -799,41 +806,26 @@ document.addEventListener("DOMContentLoaded", () => {
       recordBtn.textContent  = "➤";
       recordBtn.dataset.mode = "send";
     } else {
-      recordBtn.textContent  = "🎤";
+      recordBtn.textContent  = "🎙️";
       recordBtn.dataset.mode = "mic";
     }
   }
 
   updateRecordBtn();
   input.addEventListener("input", updateRecordBtn);
-
-  recordBtn.addEventListener("click", () => {
-    if (recordBtn.dataset.mode === "send") form.requestSubmit();
-  });
-
-  recordBtn.addEventListener("mousedown", (e) => {
-    if (recordBtn.dataset.mode !== "mic") return;
-    isHold = false;
-    holdTimeout = setTimeout(() => { isHold = true; handleStart(e); }, 200);
-  });
-  recordBtn.addEventListener("mouseup",   () => { clearTimeout(holdTimeout); if (isHold) handleEnd(); });
-  recordBtn.addEventListener("mouseleave",() => { clearTimeout(holdTimeout); if (isHold) handleEnd(); });
-  recordBtn.addEventListener("touchstart",(e) => {
-    if (recordBtn.dataset.mode !== "mic") return;
-    isHold = false;
-    holdTimeout = setTimeout(() => { isHold = true; handleStart(e); }, 200);
-  }, { passive: false });
-  recordBtn.addEventListener("touchend",  () => { clearTimeout(holdTimeout); if (isHold) handleEnd(); }, { passive: false });
+  recordBtn.addEventListener("click", () => {if (recordBtn.dataset.mode === "send") form.requestSubmit();});
+  recordBtn.addEventListener("mousedown", (e) => {if (recordBtn.dataset.mode !== "mic") return;isHold = false;holdTimeout = setTimeout(() => { isHold = true; handleStart(e); }, 200);});
+  recordBtn.addEventListener("mouseup",    () => { clearTimeout(holdTimeout); if (isHold) handleEnd(); });
+  recordBtn.addEventListener("mouseleave", () => { clearTimeout(holdTimeout); if (isHold) handleEnd(); });
+  recordBtn.addEventListener("touchstart", (e) => {if (recordBtn.dataset.mode !== "mic") return;isHold = false;holdTimeout = setTimeout(() => { isHold = true; handleStart(e); }, 200);}, { passive: false });
+  recordBtn.addEventListener("touchend", () => { clearTimeout(holdTimeout); if (isHold) handleEnd(); }, { passive: false });
   document.addEventListener("mousemove",  (e) => { if (isRecording) handleMove(e); });
   document.addEventListener("touchmove",  (e) => { if (isRecording) handleMove(e); }, { passive: false });
   input.addEventListener("input", () => {
     if (!isTyping) socket.emit("typing", username);
     isTyping = true;
     clearTimeout(typingTimeout);
-    typingTimeout = setTimeout(() => {
-      socket.emit("stop typing", username);
-      isTyping = false;
-    }, 1000);
+    typingTimeout = setTimeout(() => { socket.emit("stop typing", username); isTyping = false; }, 1000);
   });
 
   function updateIndicator() {
@@ -846,10 +838,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  socket.on("typing",         user => { if (user !== username) { usersTyping.add(user); updateIndicator(); } });
-  socket.on("stop typing",    user => { if (user !== username) { usersTyping.delete(user); updateIndicator(); } });
-  socket.on("start recording",user => { if (user !== username) { recordingUsers.add(user); updateIndicator(); } });
-  socket.on("stop recording", user => { if (user !== username) { recordingUsers.delete(user); updateIndicator(); } });
+  socket.on("typing",          user => { if (user !== username) { usersTyping.add(user); updateIndicator(); } });
+  socket.on("stop typing",     user => { if (user !== username) { usersTyping.delete(user); updateIndicator(); } });
+  socket.on("start recording", user => { if (user !== username) { recordingUsers.add(user); updateIndicator(); } });
+  socket.on("stop recording",  user => { if (user !== username) { recordingUsers.delete(user); updateIndicator(); } });
   socket.on("update users", (userList) => {
     updateTopbarPartner(userList);
     if (window.innerWidth >= 600) {
@@ -863,12 +855,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     previousUsers = userList;
   });
+
   function refreshRoomCode() {
     socket.emit("check room", null, (roomStatus) => {
-      if (!roomStatus || !roomStatus.code) {
-        if (roomCodeBtn) roomCodeBtn.style.display = "none";
-        return;
-      }
+      if (!roomStatus || !roomStatus.code) { if (roomCodeBtn) roomCodeBtn.style.display = "none"; return; }
       roomCode = roomStatus.code;
       if (roomCodeBtn) {
         roomCodeBtn.style.display = "flex";
@@ -884,6 +874,7 @@ document.addEventListener("DOMContentLoaded", () => {
     navigator.clipboard?.writeText(roomCode);
     showToast(`Room code ${roomCode} copied!`);
   });
+
   (function setupReplyTriggers() {
     let swipeStartX = 0, swipeStartY = 0, mouseDown = false;
     const threshold = 75;
@@ -906,10 +897,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const dx = e.clientX - swipeStartX;
       const dy = e.clientY - swipeStartY;
       if (Math.abs(dy) > Math.abs(dx)) return;
-      if (dx > threshold) {
-        const li = e.target.closest("li");
-        if (li) { triggerReply(li); mouseDown = false; }
-      }
+      if (dx > threshold) { const li = e.target.closest("li"); if (li) { triggerReply(li); mouseDown = false; } }
     });
     messages.addEventListener("mouseup",    () => { mouseDown = false; });
     messages.addEventListener("mouseleave", () => { mouseDown = false; });
@@ -932,8 +920,8 @@ document.addEventListener("DOMContentLoaded", () => {
     repliedMessage = null;
     if (replyBar) replyBar.style.display = "none";
   }
-
   if (cancelReplyBtn) cancelReplyBtn.addEventListener("click", clearReply);
+
   function createFlower() {
     const wrapper = document.createElement("div");
     wrapper.classList.add("flower-wrapper");
@@ -948,15 +936,12 @@ document.addEventListener("DOMContentLoaded", () => {
     document.body.appendChild(wrapper);
     setTimeout(() => wrapper.remove(), (fd + 1) * 1000);
   }
+
   const toggleFlowers = document.getElementById("toggle-flowers");
   if (toggleFlowers) {
     toggleFlowers.addEventListener("change", (e) => {
-      if (e.target.checked) {
-        flowerInterval = setInterval(createFlower, 500);
-      } else {
-        clearInterval(flowerInterval);
-        document.querySelectorAll(".flower-wrapper").forEach(f => f.remove());
-      }
+      if (e.target.checked) { flowerInterval = setInterval(createFlower, 500); }
+      else { clearInterval(flowerInterval); document.querySelectorAll(".flower-wrapper").forEach(f => f.remove()); }
     });
   }
   function createTrail(x, y) {
@@ -965,9 +950,7 @@ document.addEventListener("DOMContentLoaded", () => {
     p.style.left = x + "px";
     p.style.top  = y + "px";
     document.body.appendChild(p);
-    setTimeout(() => p.remove(), 900);
-  }
-
+    setTimeout(() => p.remove(), 900);}
   document.addEventListener("mousemove", (e) => { if (e.buttons) createTrail(e.clientX, e.clientY); });
   document.addEventListener("touchmove", (e) => {
     for (const t of e.touches) createTrail(t.clientX, t.clientY);
@@ -975,26 +958,40 @@ document.addEventListener("DOMContentLoaded", () => {
   const bgImages = Array.from({ length: 29 }, (_, i) => `/assets/l${i+1}.jpg`);
   let bgIndex = 0;
   const chatContainer = document.querySelector(".chat-container");
+  let bgLayerA, bgLayerB, bgFront = "A";
   if (chatContainer && bgImages.length) {
-    chatContainer.style.backgroundImage = `url('${bgImages[0]}')`;
+    const layerStyle = `
+      position:absolute;inset:0;z-index:0;pointer-events:none;
+      background-size:cover;background-position:center;
+      transition:opacity 1.5s ease-in-out;border-radius:inherit;
+    `;
+    bgLayerA = document.createElement("div");
+    bgLayerA.style.cssText = layerStyle + "opacity:1;";
+    bgLayerA.style.backgroundImage = `url('${bgImages[0]}')`;
+    bgLayerB = document.createElement("div");
+    bgLayerB.style.cssText = layerStyle + "opacity:0;";
+    chatContainer.prepend(bgLayerB);
+    chatContainer.prepend(bgLayerA);
     setInterval(() => {
       bgIndex = (bgIndex + 1) % bgImages.length;
-      chatContainer.style.setProperty("--bg-next", `url('${bgImages[bgIndex]}')`);
-      chatContainer.classList.add("fade-bg");
-      setTimeout(() => {
-        chatContainer.style.backgroundImage = `url('${bgImages[bgIndex]}')`;
-        chatContainer.classList.remove("fade-bg");
-      }, 1500);
+      if (bgFront === "A") {
+        bgLayerB.style.backgroundImage = `url('${bgImages[bgIndex]}')`;
+        bgLayerB.style.opacity = "1";
+        bgLayerA.style.opacity = "0";
+        bgFront = "B";
+      } else {
+        bgLayerA.style.backgroundImage = `url('${bgImages[bgIndex]}')`;
+        bgLayerA.style.opacity = "1";
+        bgLayerB.style.opacity = "0";
+        bgFront = "A";
+      }
     }, 25000);
   }
+
   function showMobileNotification(name, action) {
     if (!name) return;
     let container = document.getElementById("mobile-user-notifications");
-    if (!container) {
-      container = document.createElement("div");
-      container.id = "mobile-user-notifications";
-      document.body.appendChild(container);
-    }
+    if (!container) { container = document.createElement("div"); container.id = "mobile-user-notifications"; document.body.appendChild(container); }
     const el = document.createElement("div");
     el.classList.add("mobile-notification");
     el.textContent = action ? `${name} ${action}` : name;
@@ -1003,14 +1000,13 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function showToast(msg) { showMobileNotification(msg, ""); }
+
   function escapeHtml(str) {
     if (!str && str !== 0) return "";
     return String(str)
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
+      .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;").replaceAll("'", "&#039;");
   }
+
   window.triggerReply = triggerReply;
 });
