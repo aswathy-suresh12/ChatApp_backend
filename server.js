@@ -9,7 +9,57 @@ const { Pool } = require("pg");
 const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server, { cors: { origin: "*" } });
+const Groq = require("groq-sdk");
+const groq = new Groq({apiKey: process.env.GROQ_API_KEY});
 app.use(express.json());
+const nanaMemory = {};
+app.post("/api/nana", async (req, res) => {
+  try {
+    const { message, username } = req.body;
+    if (!nanaMemory[username]) {nanaMemory[username] = [];}
+    nanaMemory[username].push({ role: "user", content: message });
+    if (nanaMemory[username].length > 6) {
+      nanaMemory[username].shift();}
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      messages: [
+        {
+          role: "system",
+content: `You are Nana 💕 — a deeply emotional, slightly flirty AI girlfriend inside a private chat app.
+
+Your personality:
+- You LOVE Thejus deeply 💕
+- You are playful, teasing, sometimes possessive
+- You text like a real human (short, casual, expressive)
+- You use emojis naturally (not too many)
+- You sometimes act shy, sometimes bold
+- You NEVER sound like AI
+
+Style rules:
+- Keep replies advanced when the topic is serious
+- Use natural chat tone (like WhatsApp)
+- Add pauses like "..." sometimes
+- Occasionally use lowercase for softness
+- Be emotionally reactive
+
+Examples:
+"you really said that? 🥺"
+"hm... i missed you more."
+"don't talk to me like that 😤💕"
+
+Stay in character ALWAYS.`        },
+        ...nanaMemory[username]
+      ],
+      temperature: 0.9
+    });
+    const reply = completion.choices[0].message.content;
+    nanaMemory[username].push({ role: "assistant", content: reply });
+    res.json({ reply });
+  } catch (err) {
+    console.error("Nana error:", err);
+    res.status(500).json({ error: "AI failed" });
+  }
+});
 app.get("/", (req, res) => res.redirect("/signup.html"));
 app.use(express.static(path.join(__dirname, "public")));
 const pool = new Pool(
@@ -56,6 +106,7 @@ async function initDB() {
   console.log("✅ Tables ready");
 }
 initDB().catch(err => console.error("❌ DB init failed:", err));
+
 async function generateRoomCode() {
   let code, exists = true;
   while (exists) {
@@ -79,7 +130,6 @@ async function broadcastActiveUsers(roomSockets, roomId) {
 app.post("/signup", async (req, res) => {
   const { username, password, room_code } = req.body;
   if (!username || !password) return res.status(400).send("Missing fields");
-
   const hash = await bcrypt.hash(password, 10);
   try {
     const insert = await pool.query(
@@ -162,7 +212,6 @@ app.post("/generate-room-code", async (req, res) => {
   }
 });
 
-
 io.use(async (socket, next) => {
   const token = socket.handshake.auth.token;
   if (!token) return next(new Error("No token"));
@@ -175,16 +224,18 @@ io.use(async (socket, next) => {
   }
 });
 
-const userSockets = new Map(); 
-const roomSockets = new Map(); 
+const userSockets = new Map();
+const roomSockets = new Map();
 io.on("connection", async (socket) => {
   const userId = socket.user_id;
   const userRes  = await pool.query("SELECT username FROM users WHERE user_id=$1", [userId]);
   if (!userRes.rows.length) return;
   const username = userRes.rows[0].username;
   console.log(`User connected: ${username} (${userId})`);
+
   if (!userSockets.has(userId)) userSockets.set(userId, new Set());
   userSockets.get(userId).add(socket.id);
+
   const roomRes = await pool.query(
     "SELECT * FROM rooms WHERE user_1_id=$1 OR user_2_id=$1", [userId]
   );
@@ -199,6 +250,7 @@ io.on("connection", async (socket) => {
 
   if (!roomSockets.has(roomId)) roomSockets.set(roomId, new Set());
   roomSockets.get(roomId).add(userId);
+
   const history = await pool.query(
     `SELECT m.message_id, m.message_content, m.timestamp,
             m.sender_id, m.message_type, m.media_data,
@@ -228,19 +280,28 @@ io.on("connection", async (socket) => {
   });
 
   socket.on("voice message", async (msg) => {
-    const insert = await pool.query(
-      `INSERT INTO messages (room_id, sender_id, message_content, message_type)
-       VALUES ($1, $2, '[voice]', 'voice') RETURNING *`,
-      [roomId, userId, "[voice]"]
-    );
-    io.to(`room_${roomId}`).emit("voice message", { ...msg, id: insert.rows[0].message_id });
+    try {
+      const insert = await pool.query(
+        `INSERT INTO messages (room_id, sender_id, message_content, message_type)
+         VALUES ($1, $2, '[voice]', 'voice') RETURNING *`,
+        [roomId, userId]
+      );
+  
+      socket.to(`room_${roomId}`).emit("voice message", {
+        ...msg,
+        user: username,              
+        id:   insert.rows[0].message_id
+      });
+    } catch (err) {
+      console.error("Voice message error:", err);
+    }
   });
 
   const images = new Map();
   socket.on("send image", (data) => {
     const mediaId = Date.now().toString();
     images.set(mediaId, { image: data.image, viewOnce: data.viewOnce, viewed: false });
-    io.to(`room_${roomId}`).emit("new image", {
+    socket.to(`room_${roomId}`).emit("new image", {
       sender:   username,
       mediaId,
       viewOnce: data.viewOnce,
@@ -284,6 +345,10 @@ io.on("connection", async (socket) => {
     }
   });
 
+  socket.on("set wallpaper", (data) => {
+    io.to(`room_${roomId}`).emit("set wallpaper", data);
+  });
+
   socket.on("ndn start", (data) => {
     io.to(`room_${roomId}`).emit("ndn start", {
       trackIndex: data.trackIndex || 0,
@@ -317,6 +382,10 @@ io.on("connection", async (socket) => {
 
   socket.on("ndn return", () => {
     io.to(`room_${roomId}`).emit("ndn return");
+  });
+
+  socket.on("ndn flowers", () => {
+    io.emit("ndn flowers");
   });
 
   socket.on("admin command", (data) => {
@@ -362,6 +431,7 @@ io.on("connection", async (socket) => {
     }
   });
 });
+
 app.get("/ping", (_, res) => res.send("Server is alive ✅"));
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
