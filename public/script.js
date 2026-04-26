@@ -2,10 +2,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const token    = localStorage.getItem("token");
   const userId   = localStorage.getItem("user_id");
   const username = localStorage.getItem("username");
-  if (!token || !userId || !username) {
-    window.location.href = "/login.html";
-    return;
-  }
+  if (!token || !userId || !username) {window.location.href = "/login.html";return;}
   const socket = io("/", { auth: { token } });
   socket.on("connect", () => console.log("✅ Socket connected", socket.id));
   socket.on("connect_error", err => {
@@ -39,7 +36,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const onlineDot          = document.getElementById("online-dot");
   const roomCodeBtn        = document.getElementById("room-code-btn");
   const roomCodeText       = document.getElementById("room-code-text");
-
+  const wallpaperInput     = document.getElementById("wallpaper-input");
+  const menuWallpaperBtn   = document.getElementById("menu-wallpaper-btn");
   let messageCounter    = 0;
   let repliedMessage    = null;
   let musicEnabled      = false;
@@ -64,7 +62,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let roomCode          = null;
   let isAdmin           = false;
   let commandCooldown   = false;
-
+  if (menuWallpaperBtn && wallpaperInput) {menuWallpaperBtn.addEventListener("click", () => {wallpaperInput.click();});}
   const ADMIN_USERS = ["Thejus", "Nandhana","Anjana"];
   function isAdminUser() {return ADMIN_USERS.includes(username) || isAdmin;}
   const REACTIONS = ["❤️", "😂", "🥺", "🔥", "👏", "😍"];
@@ -138,6 +136,7 @@ document.addEventListener("DOMContentLoaded", () => {
     demote:   (args) => handleDemote(args),
     returnbg: (args) => handleReturnBg(args),
     help:     (args) => handleHelp(args),
+    nana:     (args) => handleNana(args) 
   };
 
   function handleInput(text) {
@@ -195,25 +194,31 @@ document.addEventListener("DOMContentLoaded", () => {
         socket.emit("ndn start", { trackIndex: idx - 1, startTime: Date.now() });
         break;
       }
-      case "next":
-        socket.emit("ndn next", { startTime: Date.now() });
-        break;
-      case "prev":
-        socket.emit("ndn prev", { startTime: Date.now() });
-        break;
-      case "jump":
-        socket.emit("ndn jump", { trackIndex: currentTrackIndex, startTime: Date.now() });
-        break;
-      case "dark":
-        socket.emit("ndn dark");
-        break;
-      case "return":
-        socket.emit("ndn return");
-        break;
-      default:
-        showToast("🎵 ndn: start | stop | play <n> | next | prev | jump | dark | return");
+        case "next":
+          socket.emit("ndn next", { startTime: Date.now() });
+          break;
+        case "prev":
+          socket.emit("ndn prev", { startTime: Date.now() });
+          break;
+        case "jump":
+          socket.emit("ndn jump", { trackIndex: currentTrackIndex, startTime: Date.now() });
+          break;
+        case "dark":
+          socket.emit("ndn dark");
+          break;
+        case "return":
+          socket.emit("ndn return");
+          break;
+        case "wall":
+          wallpaperInput.click();
+          break;
+        case "flowers":
+          socket.emit("ndn flowers");
+          break;
+        default:
+          showToast("🎵 ndn: start | stop | play <n> | next | prev | jump | dark | return | wall | flowers");
+      }
     }
-  }
 
   function handlePromote() {
     if (!isAdminUser()) { showToast("❌ Admin only"); return; }
@@ -226,7 +231,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function handleReturnBg() {
-    if (!isAdminUser()) { showToast("❌ Admin only"); return; }
     socket.emit("return bg");
   }
 
@@ -234,6 +238,87 @@ document.addEventListener("DOMContentLoaded", () => {
     showToast(" Commands loaded — see console");
     console.log("── CHATAPP COMMANDS ──\ncls — clear chat (admin)\ndlt — delete replied message\nndn start/stop/play N/next/prev — music\nndn dark/return — dark overlay toggle\nreturnbg — reset background\npromote / demote — admin control");
   }
+
+  async function handleNana(args) {
+  const text = args.join(" ");
+  console.log("Nana triggered with:", text);
+  if (!text) {
+    showToast("💬 Ask Nana something");
+    return;
+  }
+  const tempId = Date.now().toString();
+function typeMessage(text, callback) {
+  let i = 0;
+  let current = "";
+
+  const interval = setInterval(() => {
+    current += text[i];
+    i++;
+
+    document.querySelector("#messages .msg-row:last-child li").textContent = current;
+
+    if (i >= text.length) {
+      clearInterval(interval);
+      if (callback) callback();
+    }
+  }, 20 + Math.random() * 30); 
+}
+
+  try {
+    const res = await fetch("/api/nana", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        message: text,
+        username
+      })
+    });
+
+    const data = await res.json();
+const tempMsg = appendMessage({
+  user: "Nana 💕",
+  text: "",
+  id: tempId
+}, "received");
+await new Promise(r => setTimeout(r, 600 + Math.random()*800))
+typeMessage(data.reply);
+
+  } catch (err) {
+    showToast("❌ Nana failed");
+  }
+}
+
+   function createFlower() {
+    const wrapper = document.createElement("div");
+    wrapper.classList.add("flower-wrapper");
+    const flower  = document.createElement("div");
+    flower.classList.add("flower");
+    flower.textContent = ["🌸","🌺","🌹","💐","🌼"][Math.floor(Math.random()*5)];
+    wrapper.style.left = Math.random() * 100 + "vw";
+    const fd = 4 + Math.random() * 3;
+    wrapper.style.animationDuration = fd + "s";
+    flower.style.animationDuration  = `${2+Math.random()*2}s, ${3+Math.random()*4}s`;
+    wrapper.appendChild(flower);
+    document.body.appendChild(wrapper);
+    setTimeout(() => wrapper.remove(), (fd + 1) * 1000);
+  }
+
+function startFlowerEffect() {
+  if (flowerInterval) return; 
+  flowerInterval = setInterval(createFlower, 500);
+  const toggle = document.getElementById("toggle-flowers");
+  if (toggle) toggle.checked = true;
+}
+
+function stopFlowerEffect() {
+  clearInterval(flowerInterval);
+  flowerInterval = null;
+  document.querySelectorAll(".flower-wrapper").forEach(f => f.remove());
+  const toggle = document.getElementById("toggle-flowers");
+  if (toggle) toggle.checked = false;
+}
 
   socket.on("ndn start", (data) => {
     musicEnabled = true;
@@ -272,16 +357,30 @@ document.addEventListener("DOMContentLoaded", () => {
     showToast("☀️ Dark mode off");
   });
 
+  socket.on("ndn flowers", () => {
+    startFlowerEffect();
+    showToast("🌸 Flower mode activated");
+  });
+
   socket.on("admin command", (data) => {
     if (data.action === "promote") { isAdmin = true; showToast("👑 You've been promoted to admin"); }
     else if (data.action === "demote") { isAdmin = false; showToast("🔻 Admin access removed"); }
   });
 
-  socket.on("return bg", () => {
-    bgIndex = 0;
-    if (chatContainer) chatContainer.style.backgroundImage = `url('${bgImages[0]}')`;
-    showToast("🖼️ Background reset");
-  });
+socket.on("return bg", () => {
+  wallpaperActive = false; 
+  const wallLayer = document.getElementById("wallpaper-layer");
+  if (wallLayer) {
+    wallLayer.remove();
+  }
+  if (bgLayerA && bgLayerB) {
+    bgLayerA.style.opacity = "1";
+    bgLayerB.style.opacity = "0";
+    bgLayerA.style.backgroundImage = `url('${bgImages[bgIndex]}')`;
+    bgFront = "A";
+  }
+  showToast(" Background restored");
+});
 
   socket.on("clear chat", () => {
     const allItems = document.querySelectorAll("#messages .msg-row, #messages li");
@@ -291,6 +390,10 @@ document.addEventListener("DOMContentLoaded", () => {
       el.style.transform  = "scale(0.8)";
     });
     setTimeout(() => { messages.innerHTML = ""; }, 420);
+  });
+
+  socket.on("set wallpaper", (data) => {
+  applyWallpaper(data.wallpaper);
   });
 
   function syncPlay(trackIndex, startTime) {
@@ -339,13 +442,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   if (playPauseBtn) playPauseBtn.addEventListener("click", () => {
-    if (!currentAudio) { playTrack(currentTrackIndex); return; }
-    currentAudio.paused ? currentAudio.play() : currentAudio.pause();
-  });
+  if (!currentAudio) { playTrack(currentTrackIndex); return; }currentAudio.paused ? currentAudio.play() : currentAudio.pause();  });
   if (nextBtn) nextBtn.addEventListener("click", () => playTrack(currentTrackIndex + 1));
   if (prevBtn) prevBtn.addEventListener("click", () => playTrack(currentTrackIndex - 1));
-
-  // ── Topbar partner display ───────────────────────────────────
   function updateTopbarPartner(userList) {
     const partner = userList.find(u => u !== username);
     if (!partner) {
@@ -518,7 +617,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // ── Image messages ───────────────────────────────────────────
   function appendImageMessage(data, isSent) {
     const type = isSent ? "sent" : "received";
     const row  = document.createElement("div");
@@ -533,11 +631,9 @@ document.addEventListener("DOMContentLoaded", () => {
     wrap.classList.add("msg-bubble-wrap");
     const li = document.createElement("li");
     li.classList.add(type);
-
     const img = document.createElement("img");
     img.classList.add("msg-img");
     if (data.viewOnce && !isSent) {
-      // Receiver sees tap-to-view placeholder
       img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='60'%3E%3Crect width='120' height='60' rx='8' fill='%23ffffff18'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23ffffff88' font-size='13' font-family='sans-serif'%3E👁 Tap to view%3C/text%3E%3C/svg%3E";
       img.style.cursor = "pointer";
       img.addEventListener("click", () => socket.emit("view image", data.mediaId));
@@ -580,17 +676,33 @@ document.addEventListener("DOMContentLoaded", () => {
     const reader = new FileReader();
     reader.onload = () => {
       const viewOnce = confirm("Send as view-once image?");
-      // Sender sees their own image immediately (local render)
       appendImageMessage({ image: reader.result, sender: username, viewOnce: false }, true);
-      // Tell server to forward to receiver only (server uses socket.to())
       socket.emit("send image", { image: reader.result, viewOnce });
     };
     reader.readAsDataURL(file);
     imageInput.value = "";
   });
+wallpaperInput.addEventListener("change", () => {
+  const file = wallpaperInput.files[0];
+  if (!file) return;
 
-  // FIX: Server now uses socket.to() so this ONLY fires on the receiver's side.
-  // No sender-check needed anymore — the sender never receives this event.
+  if (file.size > 5 * 1024 * 1024) {
+    showToast("❌ Max 5MB wallpaper");
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    const wallpaperData = reader.result;
+    applyWallpaper(wallpaperData);
+    socket.emit("set wallpaper", {
+      wallpaper: wallpaperData,
+      user: username
+    });
+  };
+  reader.readAsDataURL(file);
+  wallpaperInput.value = "";
+});
+
   socket.on("new image", (data) => {
     appendImageMessage(data, false);
   });
@@ -610,7 +722,6 @@ document.addEventListener("DOMContentLoaded", () => {
     document.body.appendChild(viewer);
   });
 
-  // ── Form submit ──────────────────────────────────────────────
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     const text = input.value.trim();
@@ -667,7 +778,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // ── Voice messages ───────────────────────────────────────────
   function appendVoiceMessage(msg, isSent) {
     const type = isSent ? "sent" : "received";
     const row  = document.createElement("div");
@@ -676,8 +786,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const av = document.createElement("div");
       av.classList.add("msg-mini-avatar");
       av.textContent = (msg.user || "?").charAt(0).toUpperCase();
-      row.appendChild(av);
-    }
+      row.appendChild(av);}
     const wrap = document.createElement("div");
     wrap.classList.add("msg-bubble-wrap");
     const li = document.createElement("li");
@@ -700,8 +809,6 @@ document.addEventListener("DOMContentLoaded", () => {
     messages.scrollTop = messages.scrollHeight;
   }
 
-  // FIX: Server now uses socket.to() so this ONLY fires on the receiver's side.
-  // No sender-check needed anymore — the sender never receives this event.
   socket.on("voice message", (msg) => {
     appendVoiceMessage(msg, false);
   });
@@ -753,9 +860,7 @@ document.addEventListener("DOMContentLoaded", () => {
             id:    (messageCounter++).toString(),
             ts:    Date.now()
           };
-          // Emit to server (server forwards to receiver only via socket.to())
           socket.emit("voice message", voiceMsg);
-          // Sender sees their own voice message immediately (local render)
           appendVoiceMessage(voiceMsg, true);
         };
         reader.readAsDataURL(blob);
@@ -922,28 +1027,12 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   if (cancelReplyBtn) cancelReplyBtn.addEventListener("click", clearReply);
 
-  function createFlower() {
-    const wrapper = document.createElement("div");
-    wrapper.classList.add("flower-wrapper");
-    const flower  = document.createElement("div");
-    flower.classList.add("flower");
-    flower.textContent = ["🌸","🌺","🌹","💐","🌼"][Math.floor(Math.random()*5)];
-    wrapper.style.left = Math.random() * 100 + "vw";
-    const fd = 4 + Math.random() * 3;
-    wrapper.style.animationDuration = fd + "s";
-    flower.style.animationDuration  = `${2+Math.random()*2}s, ${3+Math.random()*4}s`;
-    wrapper.appendChild(flower);
-    document.body.appendChild(wrapper);
-    setTimeout(() => wrapper.remove(), (fd + 1) * 1000);
-  }
-
-  const toggleFlowers = document.getElementById("toggle-flowers");
-  if (toggleFlowers) {
-    toggleFlowers.addEventListener("change", (e) => {
-      if (e.target.checked) { flowerInterval = setInterval(createFlower, 500); }
-      else { clearInterval(flowerInterval); document.querySelectorAll(".flower-wrapper").forEach(f => f.remove()); }
-    });
-  }
+const toggleFlowers = document.getElementById("toggle-flowers");
+if (toggleFlowers) {
+  toggleFlowers.addEventListener("change", (e) => {
+    e.target.checked ? startFlowerEffect() : stopFlowerEffect();
+  });
+}
   function createTrail(x, y) {
     const p = document.createElement("div");
     p.classList.add("trail-particle");
@@ -959,6 +1048,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let bgIndex = 0;
   const chatContainer = document.querySelector(".chat-container");
   let bgLayerA, bgLayerB, bgFront = "A";
+  let bgInterval = null;
+  let wallpaperActive = false;
   if (chatContainer && bgImages.length) {
     const layerStyle = `
       position:absolute;inset:0;z-index:0;pointer-events:none;
@@ -972,8 +1063,9 @@ document.addEventListener("DOMContentLoaded", () => {
     bgLayerB.style.cssText = layerStyle + "opacity:0;";
     chatContainer.prepend(bgLayerB);
     chatContainer.prepend(bgLayerA);
-    setInterval(() => {
-      bgIndex = (bgIndex + 1) % bgImages.length;
+  bgInterval = setInterval(() => {
+  if (wallpaperActive) return; 
+  bgIndex = (bgIndex + 1) % bgImages.length;
       if (bgFront === "A") {
         bgLayerB.style.backgroundImage = `url('${bgImages[bgIndex]}')`;
         bgLayerB.style.opacity = "1";
@@ -987,7 +1079,30 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }, 25000);
   }
-
+  
+function applyWallpaper(image) {
+  if (!chatContainer) return;
+  wallpaperActive = true; 
+  if (bgLayerA) bgLayerA.style.opacity = "0";
+  if (bgLayerB) bgLayerB.style.opacity = "0";
+  let wallLayer = document.getElementById("wallpaper-layer");
+  if (!wallLayer) {
+    wallLayer = document.createElement("div");
+    wallLayer.id = "wallpaper-layer";
+    wallLayer.style.cssText = `
+      position:absolute;
+      inset:0;
+      z-index:0;
+      background-size:cover;
+      background-position:center;
+      transition:opacity 0.5s ease;
+    `;
+    chatContainer.prepend(wallLayer);
+  }
+  wallLayer.style.backgroundImage = `url('${image}')`;
+  wallLayer.style.opacity = "1";
+  showToast("Wallpaper applied ");
+}
   function showMobileNotification(name, action) {
     if (!name) return;
     let container = document.getElementById("mobile-user-notifications");
@@ -1000,7 +1115,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function showToast(msg) { showMobileNotification(msg, ""); }
-
   function escapeHtml(str) {
     if (!str && str !== 0) return "";
     return String(str)
