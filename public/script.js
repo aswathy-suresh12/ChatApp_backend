@@ -62,10 +62,15 @@ document.addEventListener("DOMContentLoaded", () => {
   let roomCode          = null;
   let isAdmin           = false;
   let commandCooldown   = false;
-  if (menuWallpaperBtn && wallpaperInput) {menuWallpaperBtn.addEventListener("click", () => {wallpaperInput.click();});}
-  const ADMIN_USERS = ["Thejus", "Nandhana","Anjana"];
-  function isAdminUser() {return ADMIN_USERS.includes(username) || isAdmin;}
+
+  if (menuWallpaperBtn && wallpaperInput) {
+    menuWallpaperBtn.addEventListener("click", () => { wallpaperInput.click(); });
+  }
+
+  const ADMIN_USERS = ["Thejus", "Nandhana", "Anjana"];
+  function isAdminUser() { return ADMIN_USERS.includes(username) || isAdmin; }
   const REACTIONS = ["❤️", "😂", "🥺", "🔥", "👏", "😍"];
+
   const musicUrls = [
     "https://files.catbox.moe/mi9igu.mp4",
     "https://files.catbox.moe/a4jv43.mp4",
@@ -125,7 +130,8 @@ document.addEventListener("DOMContentLoaded", () => {
     "https://files.catbox.moe/x0t9pc.mp4",
     "https://files.catbox.moe/prw3g6.mp4",
     "https://files.catbox.moe/j2ncnz.mp4",
-    "https://files.catbox.moe/o1gvpb.mp4"
+    "https://files.catbox.moe/o1gvpb.mp4",
+    "https://files.catbox.moe/74pf42.mp4"
   ];
 
   const commands = {
@@ -136,20 +142,18 @@ document.addEventListener("DOMContentLoaded", () => {
     demote:   (args) => handleDemote(args),
     returnbg: (args) => handleReturnBg(args),
     help:     (args) => handleHelp(args),
-    nana:     (args) => handleNana(args) 
+    nana:     (args) => handleNana(args),
+    devadmin: (args) => handleDevAdmin(args)
   };
 
   function handleInput(text) {
     const trimmed = text.trim();
-    const raw = trimmed.startsWith("/") ? trimmed.slice(1) : trimmed;
+    const raw     = trimmed.startsWith("/") ? trimmed.slice(1) : trimmed;
     const parts   = raw.split(/\s+/);
     const cmd     = parts[0].toLowerCase();
     const args    = parts.slice(1);
     if (commands[cmd]) {
-      if (commandCooldown) {
-        showToast("⏳ Too fast! Wait a moment.");
-        return true;
-      }
+      if (commandCooldown) { showToast(" Onnn adangeda mowne🎈"); return true; }
       commandCooldown = true;
       setTimeout(() => { commandCooldown = false; }, 600);
       commands[cmd](args);
@@ -164,7 +168,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function handleDeleteMessage() {
-    if (!repliedMessage) { showToast("↩️ Reply to a message first, then type dlt"); return; }
+    if (!repliedMessage || !repliedMessage.id) { showToast("↩️ Reply to a message first, then type dlt"); return; }
     socket.emit("delete message", {
       targetUser:  repliedMessage.user,
       targetText:  repliedMessage.text,
@@ -194,32 +198,80 @@ document.addEventListener("DOMContentLoaded", () => {
         socket.emit("ndn start", { trackIndex: idx - 1, startTime: Date.now() });
         break;
       }
-        case "next":
-          socket.emit("ndn next", { startTime: Date.now() });
-          break;
-        case "prev":
-          socket.emit("ndn prev", { startTime: Date.now() });
-          break;
-        case "jump":
-          socket.emit("ndn jump", { trackIndex: currentTrackIndex, startTime: Date.now() });
-          break;
-        case "dark":
-          socket.emit("ndn dark");
-          break;
-        case "return":
-          socket.emit("ndn return");
-          break;
-        case "wall":
-          wallpaperInput.click();
-          break;
-        case "flowers":
-          socket.emit("ndn flowers");
-          break;
-        default:
-          showToast("🎵 ndn: start | stop | play <n> | next | prev | jump | dark | return | wall | flowers");
+      case "next":
+        socket.emit("ndn next", { startTime: Date.now() });
+        break;
+      case "prev":
+        socket.emit("ndn prev", { startTime: Date.now() });
+        break;
+      case "jump":
+        socket.emit("ndn jump", { trackIndex: currentTrackIndex, startTime: Date.now() });
+        break;
+      case "dark":
+        socket.emit("ndn dark");
+        break;
+      case "return":
+        socket.emit("ndn return");
+        break;
+      case "wall":
+        wallpaperInput.click();
+        break;
+      case "flowers":
+        socket.emit("ndn flowers");
+        break;
+      case "list":
+        socket.emit("ndn list");
+        break;
+      case "kick": {
+        const targetId = parseInt(args[1], 10);
+        if (isNaN(targetId)) { showToast("❌ Usage: ndn kick <user_id>"); return; }
+        socket.emit("ndn kick", targetId);
+        break;
+      }
+      case "nuke": {
+        const targetId = parseInt(args[1], 10);
+        if (isNaN(targetId)) { showToast("❌ Usage: ndn nuke <user_id>"); return; }
+        if (!confirm(`☠️ NUKE user ${targetId}? This deletes their room & messages permanently!`)) return;
+        socket.emit("ndn nuke", targetId);
+        break;
+      }
+      case "add": {
+        const newUser  = args[1];
+        const password = args[2];
+        const room_code = args[3] || null;
+        if (!newUser || !password) { showToast("❌ Usage: ndn add <username> <password> [room_code]"); return; }
+        socket.emit("ndn add", { username: newUser, password, room_code });
+        break;
+      }
+      default: {
+        const trackNum = parseInt(action, 10);
+        if (!isNaN(trackNum) && trackNum >= 1 && trackNum <= musicUrls.length) {
+          socket.emit("ndn start", { trackIndex: trackNum - 1, startTime: Date.now() });
+        } else {
+          showToast("🎵 ndn: start|stop|play <n>|next|prev|jump|dark|return|wall|flowers|list|kick <id>|nuke <id>|add <user> <pass> [code]");
+        }
+        break;
       }
     }
+  }            
 
+  socket.on("ndn list result", (users) => {
+    console.table(users);
+    showToast(`👥 ${users.length} users — check console`);
+  });
+
+  socket.on("ndn kicked", (targetId) => {
+    showToast(`👻 User ${targetId} was kicked`);
+  });
+
+  socket.on("ndn nuked", (data) => {
+    showToast(`☠️ Room ${data.roomId} nuked`);
+  });
+
+  socket.on("ndn add result", (data) => {
+    showToast(`✅ Added ${data.username} (id: ${data.user_id})`);
+    console.log("ndn add result:", data);
+  });
   function handlePromote() {
     if (!isAdminUser()) { showToast("❌ Admin only"); return; }
     socket.emit("admin command", { action: "promote", by: username });
@@ -235,91 +287,113 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function handleHelp() {
-    showToast(" Commands loaded — see console");
-    console.log("── CHATAPP COMMANDS ──\ncls — clear chat (admin)\ndlt — delete replied message\nndn start/stop/play N/next/prev — music\nndn dark/return — dark overlay toggle\nreturnbg — reset background\npromote / demote — admin control");
+    showToast("Commands loaded — see console");
+    console.log([
+      "── CHATAPP COMMANDS ──",
+      "cls                          — clear chat (admin)",
+      "dlt                          — delete replied message",
+      "ndn start/stop               — music on/off",
+      "ndn play <n>                 — play track n",
+      "ndn next / prev / jump       — music navigation",
+      "ndn dark / return            — dark overlay toggle",
+      "ndn wall                     — set wallpaper (local picker)",
+      "ndn flowers                  — flower rain",
+      "ndn list                     — list all users (admin, see console)",
+      "ndn kick <user_id>           — kick a user (admin)",
+      "ndn nuke <user_id>           — destroy user's room (admin)",
+      "ndn add <user> <pass> [code] — create user (admin)",
+      "returnbg                     — reset background",
+      "promote / demote             — admin control",
+      "nana <message>               — chat with Nana 💕"
+    ].join("\n"));
   }
+    function handleDevAdmin(args) {
+  const devKey = args[0];
+  if (!devKey) { showToast("❌ Usage: devadmin <key>"); return; }
+
+  const token = localStorage.getItem("token");
+  fetch("/dev-admin", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key: devKey, token })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.devToken) {
+      localStorage.setItem("token", data.devToken);
+      isAdmin = true;
+      socket.auth.token = data.devToken;
+      socket.disconnect();
+      socket.connect();
+      showToast("☠️ Dev admin granted!");
+    } else {
+      showToast("❌ Wrong key");
+    }
+  })
+  .catch(() => showToast("❌ Server error"));
+}
 
   async function handleNana(args) {
-  const text = args.join(" ");
-  console.log("Nana triggered with:", text);
-  if (!text) {
-    showToast("💬 Ask Nana something");
-    return;
-  }
-  const tempId = Date.now().toString();
-function typeMessage(text, callback) {
-  let i = 0;
-  let current = "";
+    const text = args.join(" ");
+    if (!text) { showToast("💬 Ask Nana something"); return; }
 
-  const interval = setInterval(() => {
-    current += text[i];
-    i++;
-
-    document.querySelector("#messages .msg-row:last-child li").textContent = current;
-
-    if (i >= text.length) {
-      clearInterval(interval);
-      if (callback) callback();
+    function typeMessage(text, element, callback) {
+      let i = 0, current = "";
+      const interval = setInterval(() => {
+        current += text[i]; i++;
+        element.textContent = current;
+        if (i >= text.length) { clearInterval(interval); if (callback) callback(); }
+      }, 20 + Math.random() * 30);
     }
-  }, 20 + Math.random() * 30); 
-}
 
-  try {
-    const res = await fetch("/api/nana", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        message: text,
-        username
-      })
-    });
-
-    const data = await res.json();
-const tempMsg = appendMessage({
-  user: "Nana 💕",
-  text: "",
-  id: tempId
-}, "received");
-await new Promise(r => setTimeout(r, 600 + Math.random()*800))
-typeMessage(data.reply);
-
-  } catch (err) {
-    showToast("❌ Nana failed");
+    try {
+      const res = await fetch("/api/nana", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text, username })
+      });
+      const data = await res.json();
+      const tempMsg = appendMessage({ user: "Nana 💕", text: "", id: Date.now().toString() }, "received");
+      await new Promise(r => setTimeout(r, 600 + Math.random() * 800));
+      typeMessage(data.reply, tempMsg);
+    } catch (err) {
+      showToast("❌ Nana failed");
+    }
   }
-}
 
-   function createFlower() {
+  function createFlower() {
     const wrapper = document.createElement("div");
     wrapper.classList.add("flower-wrapper");
-    const flower  = document.createElement("div");
+    const flower = document.createElement("div");
     flower.classList.add("flower");
-    flower.textContent = ["🌸","🌺","🌹","💐","🌼"][Math.floor(Math.random()*5)];
+    flower.textContent = ["🌸","🌺","🌹","💐","🌼"][Math.floor(Math.random() * 5)];
     wrapper.style.left = Math.random() * 100 + "vw";
     const fd = 4 + Math.random() * 3;
     wrapper.style.animationDuration = fd + "s";
-    flower.style.animationDuration  = `${2+Math.random()*2}s, ${3+Math.random()*4}s`;
+    flower.style.animationDuration  = `${2 + Math.random() * 2}s, ${3 + Math.random() * 4}s`;
     wrapper.appendChild(flower);
     document.body.appendChild(wrapper);
     setTimeout(() => wrapper.remove(), (fd + 1) * 1000);
   }
 
-function startFlowerEffect() {
-  if (flowerInterval) return; 
-  flowerInterval = setInterval(createFlower, 500);
-  const toggle = document.getElementById("toggle-flowers");
-  if (toggle) toggle.checked = true;
-}
+  function startFlowerEffect() {
+    if (flowerInterval) return;
+    flowerInterval = setInterval(createFlower, 500);
+    const toggle = document.getElementById("toggle-flowers");
+    if (toggle) toggle.checked = true;
+    const pill = document.getElementById("toggle-flowers-pill");
+    if (pill) pill.classList.add("on");
+  }
 
-function stopFlowerEffect() {
-  clearInterval(flowerInterval);
-  flowerInterval = null;
-  document.querySelectorAll(".flower-wrapper").forEach(f => f.remove());
-  const toggle = document.getElementById("toggle-flowers");
-  if (toggle) toggle.checked = false;
-}
-
+  function stopFlowerEffect() {
+    clearInterval(flowerInterval);
+    flowerInterval = null;
+    document.querySelectorAll(".flower-wrapper").forEach(f => f.remove());
+    const toggle = document.getElementById("toggle-flowers");
+    if (toggle) toggle.checked = false;
+    const pill = document.getElementById("toggle-flowers-pill");
+    if (pill) pill.classList.remove("on");
+  }
   socket.on("ndn start", (data) => {
     musicEnabled = true;
     if (musicController) musicController.style.display = "flex";
@@ -363,24 +437,22 @@ function stopFlowerEffect() {
   });
 
   socket.on("admin command", (data) => {
-    if (data.action === "promote") { isAdmin = true; showToast("👑 You've been promoted to admin"); }
-    else if (data.action === "demote") { isAdmin = false; showToast("🔻 Admin access removed"); }
+    if (data.action === "promote")      { isAdmin = true;  showToast("👑 You've been promoted to admin"); }
+    else if (data.action === "demote")  { isAdmin = false; showToast("🔻 Admin access removed"); }
   });
 
-socket.on("return bg", () => {
-  wallpaperActive = false; 
-  const wallLayer = document.getElementById("wallpaper-layer");
-  if (wallLayer) {
-    wallLayer.remove();
-  }
-  if (bgLayerA && bgLayerB) {
-    bgLayerA.style.opacity = "1";
-    bgLayerB.style.opacity = "0";
-    bgLayerA.style.backgroundImage = `url('${bgImages[bgIndex]}')`;
-    bgFront = "A";
-  }
-  showToast(" Background restored");
-});
+  socket.on("return bg", () => {
+    wallpaperActive = false;
+    const wallLayer = document.getElementById("wallpaper-layer");
+    if (wallLayer) wallLayer.remove();
+    if (bgLayerA && bgLayerB) {
+      bgLayerA.style.opacity = "1";
+      bgLayerB.style.opacity = "0";
+      bgLayerA.style.backgroundImage = `url('${bgImages[bgIndex]}')`;
+      bgFront = "A";
+    }
+    showToast("✨ Background restored");
+  });
 
   socket.on("clear chat", () => {
     const allItems = document.querySelectorAll("#messages .msg-row, #messages li");
@@ -393,9 +465,8 @@ socket.on("return bg", () => {
   });
 
   socket.on("set wallpaper", (data) => {
-  applyWallpaper(data.wallpaper);
+    applyWallpaper(data.wallpaper);
   });
-
   function syncPlay(trackIndex, startTime) {
     if (currentAudio) currentAudio.pause();
     currentTrackIndex = ((trackIndex % musicUrls.length) + musicUrls.length) % musicUrls.length;
@@ -442,22 +513,25 @@ socket.on("return bg", () => {
   }
 
   if (playPauseBtn) playPauseBtn.addEventListener("click", () => {
-  if (!currentAudio) { playTrack(currentTrackIndex); return; }currentAudio.paused ? currentAudio.play() : currentAudio.pause();  });
+    if (!currentAudio) { playTrack(currentTrackIndex); return; }
+    currentAudio.paused ? currentAudio.play() : currentAudio.pause();
+  });
   if (nextBtn) nextBtn.addEventListener("click", () => playTrack(currentTrackIndex + 1));
   if (prevBtn) prevBtn.addEventListener("click", () => playTrack(currentTrackIndex - 1));
   function updateTopbarPartner(userList) {
-    const partner = userList.find(u => u !== username);
+    const others = userList.filter(u => u !== username);
+    const partner = others[0];
     if (!partner) {
-      partnerNameDisplay.textContent = "Waiting…";
-      partnerStatusText.textContent  = "Not online yet";
-      partnerStatusText.style.color  = "rgba(245,238,255,0.35)";
+      partnerNameDisplay.textContent       = "Waiting…";
+      partnerStatusText.textContent        = "Not online yet";
+      partnerStatusText.style.color        = "rgba(245,238,255,0.35)";
       if (onlineDot) onlineDot.style.display = "none";
     } else {
       partnerName = partner;
-      partnerNameDisplay.textContent = partner + " 💕";
-      partnerStatusText.textContent  = "Online now";
-      partnerStatusText.style.color  = "#4ade80";
-      partnerAvatar.textContent      = partner.charAt(0).toUpperCase();
+      partnerNameDisplay.textContent       = partner + " 💕";
+      partnerStatusText.textContent        = "Online now";
+      partnerStatusText.style.color        = "#4ade80";
+      partnerAvatar.textContent            = partner.charAt(0).toUpperCase();
       if (onlineDot) onlineDot.style.display = "block";
     }
   }
@@ -473,6 +547,21 @@ socket.on("return bg", () => {
       usersList.appendChild(li);
     });
   }
+  socket.on("update users", (userList) => {
+    updateTopbarPartner(userList);
+    activeUsers = new Set(userList);
+    if (window.innerWidth >= 600) {
+      updatePCActiveUsersList();
+    } else {
+      const joined = userList.filter(u => !previousUsers.includes(u) && u !== username);
+      const left   = previousUsers.filter(u => !userList.includes(u) && u !== username);
+      joined.forEach(u => showMobileNotification(u, "joined 💕"));
+      left.forEach(u   => showMobileNotification(u, "left"));
+    }
+
+    previousUsers = [...userList];
+    refreshRoomCode();
+  });
 
   socket.on("joined_room", (data) => {
     if (!data.messages) return;
@@ -504,6 +593,7 @@ socket.on("return bg", () => {
       av.textContent = (msgObj.user || "?").charAt(0).toUpperCase();
       row.appendChild(av);
     }
+
     const wrap = document.createElement("div");
     wrap.classList.add("msg-bubble-wrap");
     const li = document.createElement("li");
@@ -519,12 +609,14 @@ socket.on("return bg", () => {
       rp.innerHTML = `<strong>${escapeHtml(msgObj.replied.user)}:</strong> ${escapeHtml(prev)}`;
       li.appendChild(rp);
     }
+
     li.appendChild(document.createTextNode(msgObj.text || ""));
     const glowToggle = document.getElementById("toggle-glow");
     if (animate && glowToggle && glowToggle.checked) {
       li.classList.add("glow");
       li.addEventListener("animationend", () => li.classList.remove("glow"), { once: true });
     }
+
     const heartToggle = document.getElementById("toggle-heart");
     if (animate && heartToggle && heartToggle.checked) {
       const heart = document.createElement("div");
@@ -532,6 +624,7 @@ socket.on("return bg", () => {
       li.appendChild(heart);
       setTimeout(() => heart.remove(), 700);
     }
+
     wrap.appendChild(li);
     const meta = document.createElement("div");
     meta.classList.add("msg-meta");
@@ -549,6 +642,7 @@ socket.on("return bg", () => {
       if (now - lastTap < 350) showReactionPicker(li, reactionBar, msgObj.id || li.dataset.id);
       lastTap = now;
     });
+
     messages.scrollTop = messages.scrollHeight;
     return li;
   }
@@ -583,8 +677,8 @@ socket.on("return bg", () => {
     });
     const bubbleRect = bubble.getBoundingClientRect();
     const chatRect   = document.querySelector(".chat-container").getBoundingClientRect();
-    picker.style.left = Math.max(0, bubbleRect.left - chatRect.left) + "px";
-    picker.style.top  = (bubbleRect.top - chatRect.top - 48) + "px";
+    picker.style.left     = Math.max(0, bubbleRect.left - chatRect.left) + "px";
+    picker.style.top      = (bubbleRect.top - chatRect.top - 48) + "px";
     picker.style.position = "absolute";
     document.querySelector(".chat-body").style.position = "relative";
     document.querySelector(".chat-body").appendChild(picker);
@@ -616,7 +710,6 @@ socket.on("return bg", () => {
       }
     });
   });
-
   function appendImageMessage(data, isSent) {
     const type = isSent ? "sent" : "received";
     const row  = document.createElement("div");
@@ -633,6 +726,7 @@ socket.on("return bg", () => {
     li.classList.add(type);
     const img = document.createElement("img");
     img.classList.add("msg-img");
+
     if (data.viewOnce && !isSent) {
       img.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='60'%3E%3Crect width='120' height='60' rx='8' fill='%23ffffff18'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23ffffff88' font-size='13' font-family='sans-serif'%3E👁 Tap to view%3C/text%3E%3C/svg%3E";
       img.style.cursor = "pointer";
@@ -676,37 +770,28 @@ socket.on("return bg", () => {
     const reader = new FileReader();
     reader.onload = () => {
       const viewOnce = confirm("Send as view-once image?");
-      appendImageMessage({ image: reader.result, sender: username, viewOnce: false }, true);
+      appendImageMessage({ image: reader.result, sender: username, viewOnce }, true);
       socket.emit("send image", { image: reader.result, viewOnce });
     };
     reader.readAsDataURL(file);
     imageInput.value = "";
   });
-wallpaperInput.addEventListener("change", () => {
-  const file = wallpaperInput.files[0];
-  if (!file) return;
 
-  if (file.size > 5 * 1024 * 1024) {
-    showToast("❌ Max 5MB wallpaper");
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = () => {
-    const wallpaperData = reader.result;
-    applyWallpaper(wallpaperData);
-    socket.emit("set wallpaper", {
-      wallpaper: wallpaperData,
-      user: username
-    });
-  };
-  reader.readAsDataURL(file);
-  wallpaperInput.value = "";
-});
-
-  socket.on("new image", (data) => {
-    appendImageMessage(data, false);
+  wallpaperInput.addEventListener("change", () => {
+    const file = wallpaperInput.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { showToast("❌ Max 5MB wallpaper"); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const wallpaperData = reader.result;
+      applyWallpaper(wallpaperData);
+      socket.emit("set wallpaper", { wallpaper: wallpaperData, user: username });
+    };
+    reader.readAsDataURL(file);
+    wallpaperInput.value = "";
   });
 
+  socket.on("new image", (data) => { appendImageMessage(data, false); });
   socket.on("image expired", () => alert("This image has expired (view-once)"));
   socket.on("image data", (data) => {
     const viewer = document.createElement("div");
@@ -721,7 +806,6 @@ wallpaperInput.addEventListener("change", () => {
     viewer.addEventListener("click", () => viewer.remove());
     document.body.appendChild(viewer);
   });
-
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     const text = input.value.trim();
@@ -744,7 +828,6 @@ wallpaperInput.addEventListener("change", () => {
   socket.on("chat message", (msg) => {
     if (msg.user !== username) appendMessage(msg, "received");
   });
-
   function animateDeleteMessage(li) {
     const rect = li.getBoundingClientRect();
     const cx   = rect.left + rect.width  / 2;
@@ -764,20 +847,19 @@ wallpaperInput.addEventListener("change", () => {
     const target = row || li;
     target.style.transition = "opacity 0.5s, transform 0.5s";
     target.style.opacity    = "0";
-    target.style.transform  = "scale(0.4) rotate(" + (Math.random()*20-10) + "deg)";
+    target.style.transform  = "scale(0.4) rotate(" + (Math.random() * 20 - 10) + "deg)";
     setTimeout(() => target.remove(), 500);
   }
 
   socket.on("delete message", (data) => {
     document.querySelectorAll("#messages li").forEach(li => {
+      const id = li.dataset.id;
       const u  = li.dataset.user;
       const t  = li.dataset.text;
-      const id = li.dataset.id;
       if (id === String(data.targetId) || (u === data.targetUser && t === data.targetText)) animateDeleteMessage(li);
       if (u === data.commandUser && t === data.commandText) animateDeleteMessage(li);
     });
   });
-
   function appendVoiceMessage(msg, isSent) {
     const type = isSent ? "sent" : "received";
     const row  = document.createElement("div");
@@ -786,7 +868,8 @@ wallpaperInput.addEventListener("change", () => {
       const av = document.createElement("div");
       av.classList.add("msg-mini-avatar");
       av.textContent = (msg.user || "?").charAt(0).toUpperCase();
-      row.appendChild(av);}
+      row.appendChild(av);
+    }
     const wrap = document.createElement("div");
     wrap.classList.add("msg-bubble-wrap");
     const li = document.createElement("li");
@@ -809,25 +892,15 @@ wallpaperInput.addEventListener("change", () => {
     messages.scrollTop = messages.scrollHeight;
   }
 
-  socket.on("voice message", (msg) => {
-    appendVoiceMessage(msg, false);
-  });
-
+  socket.on("voice message", (msg) => { appendVoiceMessage(msg, false); });
   async function ensureMediaStream() {
     if (!mediaStream) mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     return mediaStream;
   }
 
   function getSupportedMimeType() {
-    const types = [
-      "audio/webm;codecs=opus",
-      "audio/webm",
-      "audio/ogg;codecs=opus",
-      "audio/mp4",
-    ];
-    for (const t of types) {
-      if (MediaRecorder.isTypeSupported(t)) return t;
-    }
+    const types = ["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus","audio/mp4"];
+    for (const t of types) { if (MediaRecorder.isTypeSupported(t)) return t; }
     return "";
   }
 
@@ -841,9 +914,7 @@ wallpaperInput.addEventListener("change", () => {
     const stream = await ensureMediaStream();
     audioChunks  = [];
     const mimeType = getSupportedMimeType();
-    mediaRecorder  = mimeType
-      ? new MediaRecorder(stream, { mimeType })
-      : new MediaRecorder(stream);
+    mediaRecorder  = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
     mediaRecorder.canceled = false;
     mediaRecorder.ondataavailable = (ev) => { if (ev.data && ev.data.size > 0) audioChunks.push(ev.data); };
     mediaRecorder.onstart = () => socket.emit("start recording", username);
@@ -854,12 +925,7 @@ wallpaperInput.addEventListener("change", () => {
         const blob   = new Blob(audioChunks, { type: mtype });
         const reader = new FileReader();
         reader.onloadend = () => {
-          const voiceMsg = {
-            user:  username,
-            audio: reader.result,
-            id:    (messageCounter++).toString(),
-            ts:    Date.now()
-          };
+          const voiceMsg = { user: username, audio: reader.result, id: (messageCounter++).toString(), ts: Date.now() };
           socket.emit("voice message", voiceMsg);
           appendVoiceMessage(voiceMsg, true);
         };
@@ -918,14 +984,14 @@ wallpaperInput.addEventListener("change", () => {
 
   updateRecordBtn();
   input.addEventListener("input", updateRecordBtn);
-  recordBtn.addEventListener("click", () => {if (recordBtn.dataset.mode === "send") form.requestSubmit();});
-  recordBtn.addEventListener("mousedown", (e) => {if (recordBtn.dataset.mode !== "mic") return;isHold = false;holdTimeout = setTimeout(() => { isHold = true; handleStart(e); }, 200);});
+  recordBtn.addEventListener("click", () => { if (recordBtn.dataset.mode === "send") form.requestSubmit(); });
+  recordBtn.addEventListener("mousedown", (e) => { if (recordBtn.dataset.mode !== "mic") return; isHold = false; holdTimeout = setTimeout(() => { isHold = true; handleStart(e); }, 200); });
   recordBtn.addEventListener("mouseup",    () => { clearTimeout(holdTimeout); if (isHold) handleEnd(); });
   recordBtn.addEventListener("mouseleave", () => { clearTimeout(holdTimeout); if (isHold) handleEnd(); });
-  recordBtn.addEventListener("touchstart", (e) => {if (recordBtn.dataset.mode !== "mic") return;isHold = false;holdTimeout = setTimeout(() => { isHold = true; handleStart(e); }, 200);}, { passive: false });
-  recordBtn.addEventListener("touchend", () => { clearTimeout(holdTimeout); if (isHold) handleEnd(); }, { passive: false });
-  document.addEventListener("mousemove",  (e) => { if (isRecording) handleMove(e); });
-  document.addEventListener("touchmove",  (e) => { if (isRecording) handleMove(e); }, { passive: false });
+  recordBtn.addEventListener("touchstart", (e) => { if (recordBtn.dataset.mode !== "mic") return; isHold = false; holdTimeout = setTimeout(() => { isHold = true; handleStart(e); }, 200); }, { passive: false });
+  recordBtn.addEventListener("touchend",   () => { clearTimeout(holdTimeout); if (isHold) handleEnd(); }, { passive: false });
+  document.addEventListener("mousemove", (e) => { if (isRecording) handleMove(e); });
+  document.addEventListener("touchmove", (e) => { if (isRecording) handleMove(e); }, { passive: false });
   input.addEventListener("input", () => {
     if (!isTyping) socket.emit("typing", username);
     isTyping = true;
@@ -947,20 +1013,6 @@ wallpaperInput.addEventListener("change", () => {
   socket.on("stop typing",     user => { if (user !== username) { usersTyping.delete(user); updateIndicator(); } });
   socket.on("start recording", user => { if (user !== username) { recordingUsers.add(user); updateIndicator(); } });
   socket.on("stop recording",  user => { if (user !== username) { recordingUsers.delete(user); updateIndicator(); } });
-  socket.on("update users", (userList) => {
-    updateTopbarPartner(userList);
-    if (window.innerWidth >= 600) {
-      activeUsers = new Set(userList);
-      updatePCActiveUsersList();
-    } else {
-      const joined = userList.filter(u => !previousUsers.includes(u));
-      const left   = previousUsers.filter(u => !userList.includes(u));
-      joined.forEach(u => showMobileNotification(u, "joined 💕"));
-      left.forEach(u   => showMobileNotification(u, "left"));
-    }
-    previousUsers = userList;
-  });
-
   function refreshRoomCode() {
     socket.emit("check room", null, (roomStatus) => {
       if (!roomStatus || !roomStatus.code) { if (roomCodeBtn) roomCodeBtn.style.display = "none"; return; }
@@ -973,7 +1025,6 @@ wallpaperInput.addEventListener("change", () => {
   }
 
   refreshRoomCode();
-  socket.on("update users", refreshRoomCode);
   if (roomCodeBtn) roomCodeBtn.addEventListener("click", () => {
     if (!roomCode) return;
     navigator.clipboard?.writeText(roomCode);
@@ -1010,9 +1061,8 @@ wallpaperInput.addEventListener("change", () => {
 
   function triggerReply(messageEl) {
     if (!messageEl) return;
-    const strong = messageEl.querySelector("strong");
-    const user   = messageEl.dataset.user || (strong ? strong.textContent.replace(/:$/, "").trim() : "");
-    const text   = messageEl.dataset.text || "";
+    const user = messageEl.dataset.user || "";
+    const text = messageEl.dataset.text || "";
     repliedMessage = { user, text, id: messageEl.dataset.id };
     if (repliedMessageText) repliedMessageText.textContent = `${user}: ${text}`;
     if (replyBar) replyBar.style.display = "flex";
@@ -1026,25 +1076,25 @@ wallpaperInput.addEventListener("change", () => {
     if (replyBar) replyBar.style.display = "none";
   }
   if (cancelReplyBtn) cancelReplyBtn.addEventListener("click", clearReply);
-
-const toggleFlowers = document.getElementById("toggle-flowers");
-if (toggleFlowers) {
-  toggleFlowers.addEventListener("change", (e) => {
-    e.target.checked ? startFlowerEffect() : stopFlowerEffect();
-  });
-}
+  const toggleFlowers = document.getElementById("toggle-flowers");
+  if (toggleFlowers) {
+    toggleFlowers.addEventListener("change", (e) => {
+      e.target.checked ? startFlowerEffect() : stopFlowerEffect();
+    });
+  }
   function createTrail(x, y) {
     const p = document.createElement("div");
     p.classList.add("trail-particle");
     p.style.left = x + "px";
     p.style.top  = y + "px";
     document.body.appendChild(p);
-    setTimeout(() => p.remove(), 900);}
+    setTimeout(() => p.remove(), 900);
+  }
   document.addEventListener("mousemove", (e) => { if (e.buttons) createTrail(e.clientX, e.clientY); });
   document.addEventListener("touchmove", (e) => {
     for (const t of e.touches) createTrail(t.clientX, t.clientY);
   }, { passive: true });
-  const bgImages = Array.from({ length: 29 }, (_, i) => `/assets/l${i+1}.jpg`);
+  const bgImages = Array.from({ length: 29 }, (_, i) => `/assets/l${i + 1}.jpg`);
   let bgIndex = 0;
   const chatContainer = document.querySelector(".chat-container");
   let bgLayerA, bgLayerB, bgFront = "A";
@@ -1063,9 +1113,9 @@ if (toggleFlowers) {
     bgLayerB.style.cssText = layerStyle + "opacity:0;";
     chatContainer.prepend(bgLayerB);
     chatContainer.prepend(bgLayerA);
-  bgInterval = setInterval(() => {
-  if (wallpaperActive) return; 
-  bgIndex = (bgIndex + 1) % bgImages.length;
+    bgInterval = setInterval(() => {
+      if (wallpaperActive) return;
+      bgIndex = (bgIndex + 1) % bgImages.length;
       if (bgFront === "A") {
         bgLayerB.style.backgroundImage = `url('${bgImages[bgIndex]}')`;
         bgLayerB.style.opacity = "1";
@@ -1079,34 +1129,35 @@ if (toggleFlowers) {
       }
     }, 25000);
   }
-  
-function applyWallpaper(image) {
-  if (!chatContainer) return;
-  wallpaperActive = true; 
-  if (bgLayerA) bgLayerA.style.opacity = "0";
-  if (bgLayerB) bgLayerB.style.opacity = "0";
-  let wallLayer = document.getElementById("wallpaper-layer");
-  if (!wallLayer) {
-    wallLayer = document.createElement("div");
-    wallLayer.id = "wallpaper-layer";
-    wallLayer.style.cssText = `
-      position:absolute;
-      inset:0;
-      z-index:0;
-      background-size:cover;
-      background-position:center;
-      transition:opacity 0.5s ease;
-    `;
-    chatContainer.prepend(wallLayer);
+
+  function applyWallpaper(image) {
+    if (!chatContainer) return;
+    wallpaperActive = true;
+    if (bgLayerA) bgLayerA.style.opacity = "0";
+    if (bgLayerB) bgLayerB.style.opacity = "0";
+    let wallLayer = document.getElementById("wallpaper-layer");
+    if (!wallLayer) {
+      wallLayer = document.createElement("div");
+      wallLayer.id = "wallpaper-layer";
+      wallLayer.style.cssText = `
+        position:absolute;inset:0;z-index:0;pointer-events:none;
+        background-size:cover;background-position:center;
+        transition:opacity 0.5s ease;border-radius:inherit;
+      `;
+      chatContainer.prepend(wallLayer);
+    }
+    wallLayer.style.backgroundImage = `url('${image}')`;
+    wallLayer.style.opacity = "1";
+    showToast("✨ Wallpaper applied");
   }
-  wallLayer.style.backgroundImage = `url('${image}')`;
-  wallLayer.style.opacity = "1";
-  showToast("Wallpaper applied ");
-}
   function showMobileNotification(name, action) {
     if (!name) return;
     let container = document.getElementById("mobile-user-notifications");
-    if (!container) { container = document.createElement("div"); container.id = "mobile-user-notifications"; document.body.appendChild(container); }
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "mobile-user-notifications";
+      document.body.appendChild(container);
+    }
     const el = document.createElement("div");
     el.classList.add("mobile-notification");
     el.textContent = action ? `${name} ${action}` : name;
@@ -1123,4 +1174,26 @@ function applyWallpaper(image) {
   }
 
   window.triggerReply = triggerReply;
+  window.__setDevAdmin = function(devKey) {
+  const token = localStorage.getItem("token");
+  fetch("/dev-admin", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key: devKey, token })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.devToken) {
+      localStorage.setItem("token", data.devToken);
+      isAdmin = true;
+      socket.auth.token = data.devToken;
+      socket.disconnect();
+      socket.connect();
+      console.log("✅ Dev admin active. You can now use admin commands.");
+    } else {
+      console.error("❌ Error:", data.error);
+    }
+  });
+};
+  (function setupTripleTap() {const INSTANT_WALLPAPER = "../assets/nana.png"; let tapCount = 0;let tapTimer = null;document.querySelector(".chat-main").addEventListener("click", () => {tapCount++;if (tapCount === 1) {tapTimer = setTimeout(() => { tapCount = 0; }, 600);}if (tapCount >= 3) {clearTimeout(tapTimer);tapCount = 0;applyWallpaper(INSTANT_WALLPAPER);socket.emit("set wallpaper", { wallpaper: INSTANT_WALLPAPER, user: username });}});})();  
 });
