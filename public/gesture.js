@@ -1,6 +1,6 @@
 (function () {
   const COOLDOWN_MS  = 2500;
-  const GESTURE_HOLD = 800;
+  const GESTURE_HOLD = 700;
 
   let gestureEnabled  = false;
   let lastGestureTime = 0;
@@ -12,7 +12,7 @@
   function showGestureToast(msg) {
     const el = document.getElementById("gesture-toast");
     if (!el) return;
-    el.textContent  = msg;
+    el.textContent    = msg;
     el.style.display  = "block";
     el.style.opacity  = "1";
     clearTimeout(el._t);
@@ -28,117 +28,123 @@
     lastGestureTime = now;
     const s = window.__gestureSocket;
     if (!s) { console.warn("Gesture: socket not ready"); return; }
+    console.log("🖐 Firing gesture:", pose);
     switch (pose) {
       case "palm_flip":
-        showGestureToast("☠️chats are clearing");
+        showGestureToast("☠️ Clearing chat");
         s.emit("clear chat");
         break;
       case "thumbs_up":
-        showGestureToast("Music ON");
+        showGestureToast("👍 Music ON");
         s.emit("ndn start", { trackIndex: 0, startTime: Date.now() });
         break;
       case "thumbs_down":
-        showGestureToast(" Music OFF");
+        showGestureToast("👎 Music OFF");
         s.emit("ndn stop");
         break;
       case "fist":
-        showGestureToast(" Flowers!");
+        showGestureToast("✊ Flowers!");
         s.emit("ndn flowers");
         break;
       case "victory":
-        showGestureToast(" Dark mode");
+        showGestureToast("✌️ Dark mode");
         s.emit("ndn dark");
         break;
       case "stop_hand":
-        showGestureToast(" Restoring background");
+        showGestureToast("✋ Restoring background");
         s.emit("ndn return");
         break;
       case "point_right":
-        showGestureToast(" Next track");
+        showGestureToast("👉 Next track");
         s.emit("ndn next", { startTime: Date.now() });
         break;
       case "point_left":
-        showGestureToast(" Previous track");
+        showGestureToast("👈 Previous track");
         s.emit("ndn prev", { startTime: Date.now() });
         break;
       case "call_me":
-        showGestureToast(" Random track");
-        const randomTrack = Math.floor(Math.random() * 60);
-        s.emit("ndn start", { trackIndex: randomTrack, startTime: Date.now() });
+        showGestureToast("🤙 Random track");
+        s.emit("ndn start", { trackIndex: Math.floor(Math.random() * 60), startTime: Date.now() });
         break;
     }
   }
 
-function tipY(lm, finger) {
-    const tips = { thumb: 4, index: 8, middle: 12, ring: 16, pinky: 20 };
-    return lm[tips[finger]].y;
+  // ── Landmark helpers ─────────────────────────────────────────────────────
+
+  // Is fingertip clearly above its PIP knuckle? (higher on screen = lower y)
+  function fingerUp(lm, tip, pip) {
+    return lm[tip].y < lm[pip].y - 0.035;
   }
-  function tipX(lm, finger) {
-    const tips = { thumb: 4, index: 8, middle: 12, ring: 16, pinky: 20 };
-    return lm[tips[finger]].x;
+
+  // Is fingertip roughly at or below its PIP? = curled
+  function fingerDown(lm, tip, pip) {
+    return lm[tip].y >= lm[pip].y - 0.02;
   }
-  function pipY(lm, finger) {
-    const pips = { index: 6, middle: 10, ring: 14, pinky: 18 };
-    return lm[pips[finger]].y;
-  }
-  function mcpY(lm, finger) {
-    const mcps = { index: 5, middle: 9, ring: 13, pinky: 17 };
-    return lm[mcps[finger]].y;
-  }
-  function extended(lm, finger) {
-    return tipY(lm, finger) < pipY(lm, finger) - 0.04 &&
-           tipY(lm, finger) < mcpY(lm, finger) - 0.06;
-  }
-  function curled(lm, finger) {
-    return tipY(lm, finger) > pipY(lm, finger) - 0.01;
-  }
+
+  function idx(lm)  { return fingerUp(lm, 8,  6);  }
+  function mid(lm)  { return fingerUp(lm, 12, 10); }
+  function ring(lm) { return fingerUp(lm, 16, 14); }
+  function pink(lm) { return fingerUp(lm, 20, 18); }
+
+  function idxDown(lm)  { return fingerDown(lm, 8,  6);  }
+  function midDown(lm)  { return fingerDown(lm, 12, 10); }
+  function ringDown(lm) { return fingerDown(lm, 16, 14); }
+  function pinkDown(lm) { return fingerDown(lm, 20, 18); }
+
+  // Thumb pointing clearly upward — tip well above wrist
   function thumbUp(lm) {
-      // thumb tip well above the index MCP and wrist
-      return lm[4].y < lm[5].y - 0.04 && lm[4].y < lm[0].y - 0.05;
-    }
+    return lm[4].y < lm[2].y - 0.06;
+  }
+
+  // Thumb pointing clearly downward — tip well below wrist
   function thumbDown(lm) {
-    // thumb tip well below the wrist
-    return lm[4].y > lm[0].y + 0.02;
+    return lm[4].y > lm[0].y + 0.03;
   }
-  function thumbExtended(lm) {
-    return Math.abs(lm[4].x - lm[3].x) > 0.06;
+
+  // Thumb sticking out to the side
+  function thumbOut(lm) {
+    return Math.abs(lm[4].x - lm[2].x) > 0.07;
   }
-  function handFacingUp(lm) {
-    return lm[0].y > lm[9].y + 0.05;
+
+  // Palm facing camera = wrist below middle MCP
+  function palmUp(lm) {
+    return lm[0].y > lm[9].y + 0.04;
   }
-  function allFingersCurled(lm) {
-    return curled(lm, "index") && curled(lm, "middle") &&
-           curled(lm, "ring")  && curled(lm, "pinky");
-  }
- function classifyPose(lm) {
-    const idx  = extended(lm, "index");
-    const mid  = extended(lm, "middle");
-    const ring = extended(lm, "ring");
-    const pink = extended(lm, "pinky");
-    const thb  = thumbExtended(lm);
-    const up   = handFacingUp(lm);
-    const allCurled = allFingersCurled(lm);
 
-    // call_me MUST come before point_left since both use pinky
-    if (!idx && !mid && !ring && pink && thb)  return "call_me";
+  function classifyPose(lm) {
+    const I = idx(lm),  M = mid(lm),  R = ring(lm), P = pink(lm);
+    const iD = idxDown(lm), mD = midDown(lm), rD = ringDown(lm), pD = pinkDown(lm);
+    const tUp   = thumbUp(lm);
+    const tDown = thumbDown(lm);
+    const tOut  = thumbOut(lm);
+    const up    = palmUp(lm);
 
-    // thumbs up/down — check before fist since fist also has allCurled
-    if (allCurled && thumbUp(lm))              return "thumbs_up";
-    if (allCurled && thumbDown(lm))            return "thumbs_down";
+    // ── call_me: thumb out + pinky up, middle two curled ──
+    if (tOut && P && mD && rD && !I) return "call_me";
 
-    // fist — all curled, thumb also tucked
-    if (allCurled && !thb)                     return "fist";
+    // ── thumbs up: all fingers curled, thumb pointing up ──
+    if (tUp && iD && mD && rD && pD) return "thumbs_up";
 
-    // open palm
-    if (idx && mid && ring && pink && up)      return "palm_flip";
-    if (idx && mid && ring && pink && !up)     return "stop_hand";
+    // ── thumbs down: all fingers curled, thumb pointing down ──
+    if (tDown && iD && mD && rD && pD) return "thumbs_down";
 
-    // victory
-    if (idx && mid && !ring && !pink)          return "victory";
+    // ── fist: everything curled including thumb ──
+    if (!tOut && !tUp && iD && mD && rD && pD) return "fist";
 
-    // single finger points
-    if (idx && !mid && !ring && !pink)         return "point_right";
-    if (!idx && !mid && !ring && pink && !thb) return "point_left";
+    // ── open palm facing camera ──
+    if (I && M && R && P && up)  return "palm_flip";
+
+    // ── stop hand facing away ──
+    if (I && M && R && P && !up) return "stop_hand";
+
+    // ── victory: index + middle up, ring + pinky down ──
+    if (I && M && rD && pD) return "victory";
+
+    // ── point right: only index up ──
+    if (I && mD && rD && pD && !tOut) return "point_right";
+
+    // ── point left: only pinky up ──
+    if (P && iD && mD && rD && !tOut) return "point_left";
 
     return null;
   }
@@ -159,8 +165,6 @@ function tipY(lm, finger) {
 
   function startGestureCamera() {
     if (gestureEnabled) return;
-
-    // ── admin check ──────────────────────────────────────────────────────
     const adminUsers = ["Thejus", "Nandhana", "Anjana"];
     const isAdminNow = adminUsers.includes(localStorage.getItem("username"))
                     || window.__isDevAdmin;
@@ -172,27 +176,24 @@ function tipY(lm, finger) {
 
     const videoEl = document.getElementById("gesture-video");
 
-    // ── MediaPipe Hands setup ────────────────────────────────────────────
     handsInstance = new Hands({
       locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
     });
-
     handsInstance.setOptions({
       maxNumHands:            1,
-      modelComplexity:        0,
-      minDetectionConfidence: 0.75,
-      minTrackingConfidence:  0.75
+      modelComplexity:        1,       // bumped to 1 for better accuracy
+      minDetectionConfidence: 0.7,
+      minTrackingConfidence:  0.6
     });
-
     handsInstance.onResults((results) => {
       if (!results.multiHandLandmarks || !results.multiHandLandmarks.length) {
         onPose(null);
         return;
       }
-      onPose(classifyPose(results.multiHandLandmarks[0]));
+      const pose = classifyPose(results.multiHandLandmarks[0]);
+      onPose(pose);
     });
 
-    // ── Camera ───────────────────────────────────────────────────────────
     cameraInstance = new Camera(videoEl, {
       onFrame: async () => { await handsInstance.send({ image: videoEl }); },
       width: 320, height: 240
@@ -212,18 +213,15 @@ function tipY(lm, finger) {
     if (cameraInstance) { try { cameraInstance.stop(); } catch(e) {} cameraInstance = null; }
     if (handsInstance)  { try { handsInstance.close(); } catch(e) {} handsInstance  = null; }
     showGestureToast("📷 Gesture control OFF");
-    // small delay then reload to fully release camera
     setTimeout(() => location.reload(), 1200);
   }
 
   window.gestureOn  = startGestureCamera;
   window.gestureOff = stopGestureCamera;
 
-  // ── Inject menu row ───────────────────────────────────────────────────
   document.addEventListener("DOMContentLoaded", () => {
     const divider = document.querySelector(".menu-divider");
     if (!divider) return;
-
     const row = document.createElement("div");
     row.className = "menu-row";
     row.id        = "gesture-menu-btn";
@@ -233,14 +231,12 @@ function tipY(lm, finger) {
       <div class="pill-toggle" id="gesture-pill"><div class="pill-knob"></div></div>
     `;
     divider.parentNode.insertBefore(row, divider);
-
     const pill = document.getElementById("gesture-pill");
     row.addEventListener("click", () => {
       const adminUsers = ["Thejus", "Nandhana", "Anjana"];
       const isAdminNow = adminUsers.includes(localStorage.getItem("username"))
                       || window.__isDevAdmin;
       if (!isAdminNow) { showGestureToast("❌ Admin only"); return; }
-
       if (!gestureEnabled) {
         pill.classList.add("on");
         startGestureCamera();

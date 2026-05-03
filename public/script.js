@@ -65,6 +65,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let roomCode          = null;
   let isAdmin           = false;
   let commandCooldown   = false;
+  let spotifyAudio      = null;
 
   if (menuWallpaperBtn && wallpaperInput) {
     menuWallpaperBtn.addEventListener("click", () => { wallpaperInput.click(); });
@@ -225,6 +226,19 @@ document.addEventListener("DOMContentLoaded", () => {
       case "list":
         socket.emit("ndn list");
         break;
+      case "spotify": {
+        const spotifyUrl = args[1];
+        if (!spotifyUrl || !spotifyUrl.includes("spotify.com")) {
+          showToast("❌ Usage: ndn spotify <spotify_url>");
+          return;
+        }
+        showToast("🎵 Fetching Spotify track...");
+        socket.emit("ndn spotify", spotifyUrl);
+        break;
+      }
+      case "spotify-stop":
+        socket.emit("ndn spotify stop");
+        break;
       case "kick": {
         const targetId = parseInt(args[1], 10);
         if (isNaN(targetId)) { showToast("❌ Usage: ndn kick <user_id>"); return; }
@@ -246,8 +260,7 @@ document.addEventListener("DOMContentLoaded", () => {
         socket.emit("ndn add", { username: newUser, password, room_code });
         break;
       }
-        case "gest":
-        if (!isAdminUser()) { showToast("❌ Admin only command"); return; }
+      case "gest":
         if (typeof window.gestureOn === "function") {
           if (!window.__gestureActive) {
             window.__gestureActive = true;
@@ -267,12 +280,48 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!isNaN(trackNum) && trackNum >= 1 && trackNum <= musicUrls.length) {
           socket.emit("ndn start", { trackIndex: trackNum - 1, startTime: Date.now() });
         } else {
-          showToast("🎵 ndn: start|stop|play <n>|next|prev|jump|dark|return|wall|flowers|list|kick <id>|nuke <id>|add <user> <pass> [code]");
+          showToast("🎵 ndn: start|stop|play <n>|next|prev|jump|dark|return|wall|flowers|list|spotify <url>|spotify-stop|kick <id>|nuke <id>|add <user> <pass> [code]");
         }
         break;
       }
     }
-  }            
+  }
+
+  socket.on("ndn spotify loading", () => {
+    showToast("⏳ Downloading Spotify track...");
+  });
+
+  socket.on("ndn spotify play", (data) => {
+    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+    if (spotifyAudio) { spotifyAudio.pause(); spotifyAudio = null; }
+    musicEnabled = false;
+    if (musicController) musicController.style.display = "flex";
+    const elapsed = data.startTime ? (Date.now() - data.startTime) / 1000 : 0;
+    spotifyAudio = new Audio(data.audio);
+    spotifyAudio.volume = 0.25;
+    spotifyAudio.currentTime = Math.max(0, elapsed);
+    spotifyAudio.play().catch(() => {
+      showToast("🎵 Tap anywhere to play Spotify track");
+      document.addEventListener("click", () => spotifyAudio.play().catch(() => {}), { once: true });
+    });
+    if (trackNameSpan) trackNameSpan.textContent = data.title || "Spotify Track";
+    spotifyAudio.onended = () => {
+      spotifyAudio = null;
+      if (trackNameSpan) trackNameSpan.textContent = "";
+      showToast("🎵 Spotify track ended");
+    };
+    showToast(`🎵 Now playing: ${data.title}`);
+  });
+
+  socket.on("ndn spotify stopped", () => {
+    if (spotifyAudio) { spotifyAudio.pause(); spotifyAudio = null; }
+    if (trackNameSpan) trackNameSpan.textContent = "";
+    showToast("⏹ Spotify stopped");
+  });
+
+  socket.on("ndn spotify error", (msg) => {
+    showToast("❌ Spotify: " + msg);
+  });
 
   socket.on("ndn list result", (users) => {
     console.table(users);
@@ -291,6 +340,7 @@ document.addEventListener("DOMContentLoaded", () => {
     showToast(`✅ Added ${data.username} (id: ${data.user_id})`);
     console.log("ndn add result:", data);
   });
+
   function handlePromote() {
     if (!isAdminUser()) { showToast("❌ Admin only"); return; }
     socket.emit("admin command", { action: "promote", by: username });
@@ -318,6 +368,8 @@ document.addEventListener("DOMContentLoaded", () => {
       "ndn wall                     — set wallpaper (local picker)",
       "ndn flowers                  — flower rain",
       "ndn list                     — list all users (admin, see console)",
+      "ndn spotify <url>            — play Spotify track for both users",
+      "ndn spotify-stop             — stop Spotify track",
       "ndn kick <user_id>           — kick a user (admin)",
       "ndn nuke <user_id>           — destroy user's room (admin)",
       "ndn add <user> <pass> [code] — create user (admin)",
@@ -326,32 +378,32 @@ document.addEventListener("DOMContentLoaded", () => {
       "nana <message>               — chat with Nana 💕"
     ].join("\n"));
   }
-    function handleDevAdmin(args) {
-  const devKey = args[0];
-  if (!devKey) { showToast("❌ Usage: devadmin <key>"); return; }
 
-  const token = localStorage.getItem("token");
-  fetch("/dev-admin", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ key: devKey, token })
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.devToken) {
-      localStorage.setItem("token", data.devToken);
-      isAdmin = true;
-      window.__isDevAdmin = true;
-      socket.auth.token = data.devToken;
-      socket.disconnect();
-      socket.connect();
-      showToast("☠️ Dev admin granted!");
-    } else {
-      showToast("❌ Wrong key");
-    }
-  })
-  .catch(() => showToast("❌ Server error"));
-}
+  function handleDevAdmin(args) {
+    const devKey = args[0];
+    if (!devKey) { showToast("❌ Usage: devadmin <key>"); return; }
+    const token = localStorage.getItem("token");
+    fetch("/dev-admin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: devKey, token })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.devToken) {
+        localStorage.setItem("token", data.devToken);
+        isAdmin = true;
+        window.__isDevAdmin = true;
+        socket.auth.token = data.devToken;
+        socket.disconnect();
+        socket.connect();
+        showToast("☠️ Dev admin granted!");
+      } else {
+        showToast("❌ Wrong key");
+      }
+    })
+    .catch(() => showToast("❌ Server error"));
+  }
 
   async function handleNana(args) {
     const text = args.join(" ");
@@ -414,7 +466,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const pill = document.getElementById("toggle-flowers-pill");
     if (pill) pill.classList.remove("on");
   }
+
   socket.on("ndn start", (data) => {
+    if (spotifyAudio) { spotifyAudio.pause(); spotifyAudio = null; }
     musicEnabled = true;
     if (musicController) musicController.style.display = "flex";
     if (musicToggleLabel) musicToggleLabel.style.display = "flex";
@@ -457,7 +511,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   socket.on("admin command", (data) => {
-if (data.action === "promote")      { isAdmin = true;  window.__isDevAdmin = true;  showToast("👑 You've been promoted to admin"); }
+    if (data.action === "promote")      { isAdmin = true;  window.__isDevAdmin = true;  showToast("👑 You've been promoted to admin"); }
     else if (data.action === "demote")  { isAdmin = false; window.__isDevAdmin = false; showToast("🔻 Admin access removed"); }
   });
 
@@ -487,7 +541,9 @@ if (data.action === "promote")      { isAdmin = true;  window.__isDevAdmin = tru
   socket.on("set wallpaper", (data) => {
     applyWallpaper(data.wallpaper);
   });
+
   function syncPlay(trackIndex, startTime) {
+    if (spotifyAudio) { spotifyAudio.pause(); spotifyAudio = null; }
     if (currentAudio) currentAudio.pause();
     currentTrackIndex = ((trackIndex % musicUrls.length) + musicUrls.length) % musicUrls.length;
     currentAudio = new Audio(musicUrls[currentTrackIndex]);
@@ -504,6 +560,7 @@ if (data.action === "promote")      { isAdmin = true;  window.__isDevAdmin = tru
   }
 
   function playTrack(index) {
+    if (spotifyAudio) { spotifyAudio.pause(); spotifyAudio = null; }
     if (currentAudio) currentAudio.pause();
     currentTrackIndex = ((index % musicUrls.length) + musicUrls.length) % musicUrls.length;
     currentAudio = new Audio(musicUrls[currentTrackIndex]);
@@ -533,11 +590,13 @@ if (data.action === "promote")      { isAdmin = true;  window.__isDevAdmin = tru
   }
 
   if (playPauseBtn) playPauseBtn.addEventListener("click", () => {
-    if (!currentAudio) { playTrack(currentTrackIndex); return; }
-    currentAudio.paused ? currentAudio.play() : currentAudio.pause();
+    const active = spotifyAudio || currentAudio;
+    if (!active) { playTrack(currentTrackIndex); return; }
+    active.paused ? active.play() : active.pause();
   });
-  if (nextBtn) nextBtn.addEventListener("click", () => playTrack(currentTrackIndex + 1));
-  if (prevBtn) prevBtn.addEventListener("click", () => playTrack(currentTrackIndex - 1));
+  if (nextBtn) nextBtn.addEventListener("click", () => { if (!spotifyAudio) playTrack(currentTrackIndex + 1); });
+  if (prevBtn) prevBtn.addEventListener("click", () => { if (!spotifyAudio) playTrack(currentTrackIndex - 1); });
+
   function updateTopbarPartner(userList) {
     const others = userList.filter(u => u !== username);
     const partner = others[0];
@@ -567,6 +626,7 @@ if (data.action === "promote")      { isAdmin = true;  window.__isDevAdmin = tru
       usersList.appendChild(li);
     });
   }
+
   socket.on("update users", (userList) => {
     updateTopbarPartner(userList);
     activeUsers = new Set(userList);
@@ -578,7 +638,6 @@ if (data.action === "promote")      { isAdmin = true;  window.__isDevAdmin = tru
       joined.forEach(u => showMobileNotification(u, "joined 💕"));
       left.forEach(u   => showMobileNotification(u, "left"));
     }
-
     previousUsers = [...userList];
     refreshRoomCode();
   });
@@ -586,7 +645,7 @@ if (data.action === "promote")      { isAdmin = true;  window.__isDevAdmin = tru
   socket.on("joined_room", (data) => {
     if (!data.messages) return;
     messages.innerHTML = "";
-    lastMessageDate = null; // reset date tracker on room join
+    lastMessageDate = null;
     data.messages.forEach(msg => {
       const isOwn = String(msg.sender_id) === String(userId);
       insertDateSeparatorIfNeeded(msg.timestamp);
@@ -599,7 +658,8 @@ if (data.action === "promote")      { isAdmin = true;  window.__isDevAdmin = tru
     });
     messages.scrollTop = messages.scrollHeight;
   });
-function formatTime(ts) {
+
+  function formatTime(ts) {
     const d = ts ? new Date(ts) : new Date();
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
@@ -755,6 +815,7 @@ function formatTime(ts) {
       }
     });
   });
+
   function appendImageMessage(data, isSent) {
     const type = isSent ? "sent" : "received";
     const row  = document.createElement("div");
@@ -851,6 +912,7 @@ function formatTime(ts) {
     viewer.addEventListener("click", () => viewer.remove());
     document.body.appendChild(viewer);
   });
+
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     const text = input.value.trim();
@@ -873,6 +935,7 @@ function formatTime(ts) {
   socket.on("chat message", (msg) => {
     if (msg.user !== username) appendMessage(msg, "received");
   });
+
   function animateDeleteMessage(li) {
     const rect = li.getBoundingClientRect();
     const cx   = rect.left + rect.width  / 2;
@@ -905,6 +968,7 @@ function formatTime(ts) {
       if (u === data.commandUser && t === data.commandText) animateDeleteMessage(li);
     });
   });
+
   function appendVoiceMessage(msg, isSent) {
     const type = isSent ? "sent" : "received";
     const row  = document.createElement("div");
@@ -938,6 +1002,7 @@ function formatTime(ts) {
   }
 
   socket.on("voice message", (msg) => { appendVoiceMessage(msg, false); });
+
   async function ensureMediaStream() {
     if (!mediaStream) mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
     return mediaStream;
@@ -1037,6 +1102,7 @@ function formatTime(ts) {
   recordBtn.addEventListener("touchend",   () => { clearTimeout(holdTimeout); if (isHold) handleEnd(); }, { passive: false });
   document.addEventListener("mousemove", (e) => { if (isRecording) handleMove(e); });
   document.addEventListener("touchmove", (e) => { if (isRecording) handleMove(e); }, { passive: false });
+
   input.addEventListener("input", () => {
     if (!isTyping) socket.emit("typing", username);
     isTyping = true;
@@ -1058,6 +1124,7 @@ function formatTime(ts) {
   socket.on("stop typing",     user => { if (user !== username) { usersTyping.delete(user); updateIndicator(); } });
   socket.on("start recording", user => { if (user !== username) { recordingUsers.add(user); updateIndicator(); } });
   socket.on("stop recording",  user => { if (user !== username) { recordingUsers.delete(user); updateIndicator(); } });
+
   function refreshRoomCode() {
     socket.emit("check room", null, (roomStatus) => {
       if (!roomStatus || !roomStatus.code) { if (roomCodeBtn) roomCodeBtn.style.display = "none"; return; }
@@ -1121,12 +1188,14 @@ function formatTime(ts) {
     if (replyBar) replyBar.style.display = "none";
   }
   if (cancelReplyBtn) cancelReplyBtn.addEventListener("click", clearReply);
+
   const toggleFlowers = document.getElementById("toggle-flowers");
   if (toggleFlowers) {
     toggleFlowers.addEventListener("change", (e) => {
       e.target.checked ? startFlowerEffect() : stopFlowerEffect();
     });
   }
+
   function createTrail(x, y) {
     const p = document.createElement("div");
     p.classList.add("trail-particle");
@@ -1139,6 +1208,7 @@ function formatTime(ts) {
   document.addEventListener("touchmove", (e) => {
     for (const t of e.touches) createTrail(t.clientX, t.clientY);
   }, { passive: true });
+
   const bgImages = Array.from({ length: 29 }, (_, i) => `/assets/l${i + 1}.jpg`);
   let bgIndex = 0;
   const chatContainer = document.querySelector(".chat-container");
@@ -1195,6 +1265,7 @@ function formatTime(ts) {
     wallLayer.style.opacity = "1";
     showToast("✨ Wallpaper applied");
   }
+
   function showMobileNotification(name, action) {
     if (!name) return;
     let container = document.getElementById("mobile-user-notifications");
@@ -1220,25 +1291,40 @@ function formatTime(ts) {
 
   window.triggerReply = triggerReply;
   window.__setDevAdmin = function(devKey) {
-  const token = localStorage.getItem("token");
-  fetch("/dev-admin", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ key: devKey, token })
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.devToken) {
-      localStorage.setItem("token", data.devToken);
-      isAdmin = true;
-      socket.auth.token = data.devToken;
-      socket.disconnect();
-      socket.connect();
-      console.log("✅ Dev admin active. You can now use admin commands.");
-    } else {
-      console.error("❌ Error:", data.error);
-    }
-  });
-};
-  (function setupTripleTap() {const INSTANT_WALLPAPER = "../assets/nana.png"; let tapCount = 0;let tapTimer = null;document.querySelector(".chat-main").addEventListener("click", () => {tapCount++;if (tapCount === 1) {tapTimer = setTimeout(() => { tapCount = 0; }, 600);}if (tapCount >= 3) {clearTimeout(tapTimer);tapCount = 0;applyWallpaper(INSTANT_WALLPAPER);socket.emit("set wallpaper", { wallpaper: INSTANT_WALLPAPER, user: username });}});})();  
+    const token = localStorage.getItem("token");
+    fetch("/dev-admin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: devKey, token })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.devToken) {
+        localStorage.setItem("token", data.devToken);
+        isAdmin = true;
+        socket.auth.token = data.devToken;
+        socket.disconnect();
+        socket.connect();
+        console.log("✅ Dev admin active. You can now use admin commands.");
+      } else {
+        console.error("❌ Error:", data.error);
+      }
+    });
+  };
+
+  (function setupTripleTap() {
+    const INSTANT_WALLPAPER = "../assets/nana.png";
+    let tapCount = 0;
+    let tapTimer = null;
+    document.querySelector(".chat-main").addEventListener("click", () => {
+      tapCount++;
+      if (tapCount === 1) { tapTimer = setTimeout(() => { tapCount = 0; }, 600); }
+      if (tapCount >= 3) {
+        clearTimeout(tapTimer);
+        tapCount = 0;
+        applyWallpaper(INSTANT_WALLPAPER);
+        socket.emit("set wallpaper", { wallpaper: INSTANT_WALLPAPER, user: username });
+      }
+    });
+  })();
 });

@@ -7,19 +7,21 @@ const bcrypt   = require("bcrypt");
 const jwt      = require("jsonwebtoken");
 const { Pool } = require("pg");
 const Groq     = require("groq-sdk");
+const axios    = require("axios");
 const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server, { cors: { origin: "*" } });
 const groq   = new Groq({ apiKey: process.env.GROQ_API_KEY });
 app.use(express.json());
+
 const nanaMemory = {};
+
 app.post("/api/nana", async (req, res) => {
   try {
     const { message, username } = req.body;
     if (!nanaMemory[username]) nanaMemory[username] = [];
     nanaMemory[username].push({ role: "user", content: message });
     if (nanaMemory[username].length > 6) nanaMemory[username].shift();
-
     const completion = await groq.chat.completions.create({
       model: "llama-3.1-8b-instant",
       messages: [
@@ -53,7 +55,6 @@ Stay in character ALWAYS.`
       ],
       temperature: 0.9
     });
-
     const reply = completion.choices[0].message.content;
     nanaMemory[username].push({ role: "assistant", content: reply });
     res.json({ reply });
@@ -63,8 +64,26 @@ Stay in character ALWAYS.`
   }
 });
 
+app.post("/api/spotify", async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ error: "No URL provided" });
+    const response = await axios.get(`https://api.aswinsparky.qzz.io/api/downloader/spotify?url=${encodeURIComponent(url)}`);
+    const data = response.data;
+    if (!data.success || !data.result || !data.result[0]) {
+      return res.status(500).json({ error: "Invalid API response" });
+    }
+    const track = data.result[0];
+    res.json({ title: track.title, audio: track.url, thumbnail: track.thumbnail, duration: track.duration });
+  } catch (err) {
+    console.error("Spotify API error:", err.message);
+    res.status(500).json({ error: "Failed to fetch song" });
+  }
+});
+
 app.get("/", (req, res) => res.redirect("/signup.html"));
 app.use(express.static(path.join(__dirname, "public")));
+
 const pool = new Pool(
   process.env.DATABASE_URL
     ? { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } }
@@ -144,7 +163,6 @@ app.post("/signup", async (req, res) => {
     );
     const user = insert.rows[0];
     let roomId;
-
     if (room_code) {
       const roomRes = await pool.query(
         "SELECT * FROM rooms WHERE room_code=$1 AND user_2_id IS NULL",
@@ -164,7 +182,6 @@ app.post("/signup", async (req, res) => {
       );
       roomId = newRoom.rows[0].room_id;
     }
-
     const token = jwt.sign({ user_id: user.user_id }, process.env.JWT_SECRET, { expiresIn: "7d" });
     res.status(201).json({ token, user_id: user.user_id, username: user.username, room_id: roomId });
   } catch (err) {
@@ -184,14 +201,12 @@ app.post("/login", async (req, res) => {
     if (!result.rows[0]) return res.status(401).send("User not found");
     const valid = await bcrypt.compare(password, result.rows[0].password_hash);
     if (!valid) return res.status(401).send("Wrong password");
-
     const user    = result.rows[0];
     const roomRes = await pool.query(
       "SELECT * FROM rooms WHERE user_1_id=$1 OR user_2_id=$1", [user.user_id]
     );
     let roomId = null;
     if (roomRes.rows.length) roomId = roomRes.rows[0].room_id;
-
     const token = jwt.sign({ user_id: user.user_id }, process.env.JWT_SECRET, { expiresIn: "7d" });
     res.json({ token, user_id: user.user_id, username: user.username, room_id: roomId });
   } catch (err) {
@@ -238,17 +253,22 @@ const ADMIN_USERS = ["Thejus", "Nandhana", "Anjana"];
 function isAdmin(socket, username) {
   return ADMIN_USERS.includes(username) || socket.isDevAdmin;
 }
-const userSockets = new Map(); 
-const roomSockets = new Map(); 
+
+const userSockets = new Map();
+const roomSockets = new Map();
 const roomImages  = new Map();
+const roomSpotify = new Map();
+
 io.on("connection", async (socket) => {
   const userId  = socket.user_id;
   const userRes = await pool.query("SELECT username FROM users WHERE user_id=$1", [userId]);
   if (!userRes.rows.length) return;
   const username = userRes.rows[0].username;
   console.log(`User connected: ${username} (${userId})`);
+
   if (!userSockets.has(userId)) userSockets.set(userId, new Set());
   userSockets.get(userId).add(socket.id);
+
   const roomRes = await pool.query(
     "SELECT * FROM rooms WHERE user_1_id=$1 OR user_2_id=$1", [userId]
   );
@@ -263,6 +283,7 @@ io.on("connection", async (socket) => {
 
   if (!roomSockets.has(roomId)) roomSockets.set(roomId, new Set());
   roomSockets.get(roomId).add(userId);
+
   const history = await pool.query(
     `SELECT m.message_id, m.message_content, m.timestamp,
             m.sender_id, m.message_type, m.media_data,
@@ -274,7 +295,19 @@ io.on("connection", async (socket) => {
     [roomId]
   );
   socket.emit("joined_room", { room_id: roomId, messages: history.rows });
+
+  if (roomSpotify.has(roomId)) {
+    const sp = roomSpotify.get(roomId);
+    socket.emit("ndn spotify play", {
+      title:     sp.title,
+      audio:     sp.audio,
+      thumbnail: sp.thumbnail,
+      startTime: sp.startTime
+    });
+  }
+
   await broadcastActiveUsers(roomSockets, roomId);
+
   socket.on("chat message", async (msg) => {
     if (!msg || typeof msg.text !== "string" || !msg.text.trim()) return;
     const insert = await pool.query(
@@ -308,8 +341,7 @@ io.on("connection", async (socket) => {
     }
   });
 
-  
-socket.on("send image", (data) => {
+  socket.on("send image", (data) => {
     const mediaId = Date.now().toString();
     if (!roomImages.has(roomId)) roomImages.set(roomId, new Map());
     roomImages.get(roomId).set(mediaId, { image: data.image, viewOnce: data.viewOnce, viewed: false });
@@ -330,7 +362,6 @@ socket.on("send image", (data) => {
     if (img.viewOnce) { img.viewed = true; setTimeout(() => roomImgMap.delete(mediaId), 2000); }
   });
 
-
   socket.on("react message", (data) => {
     io.to(`room_${roomId}`).emit("react message", {
       msgId: data.msgId,
@@ -338,7 +369,6 @@ socket.on("send image", (data) => {
       user:  username
     });
   });
-
 
   socket.on("delete message", async (data) => {
     if (data.targetId) {
@@ -360,7 +390,6 @@ socket.on("send image", (data) => {
     }
   });
 
-  
   socket.on("set wallpaper", (data) => {
     io.to(`room_${roomId}`).emit("set wallpaper", data);
   });
@@ -368,7 +397,6 @@ socket.on("send image", (data) => {
   socket.on("return bg", () => {
     io.to(`room_${roomId}`).emit("return bg");
   });
-
 
   socket.on("ndn start", (data) => {
     io.to(`room_${roomId}`).emit("ndn start", {
@@ -409,6 +437,48 @@ socket.on("send image", (data) => {
     io.to(`room_${roomId}`).emit("ndn flowers");
   });
 
+  socket.on("ndn stop flowers", () => {
+    io.to(`room_${roomId}`).emit("ndn stop flowers");
+  });
+
+  socket.on("ndn spotify", async (spotifyUrl) => {
+    if (!isAdmin(socket, username)) {
+      socket.emit("ndn spotify error", "Admin only");
+      return;
+    }
+    try {
+      socket.emit("ndn spotify loading", true);
+      const response = await axios.get(
+        `https://api.aswinsparky.qzz.io/api/downloader/spotify?url=${encodeURIComponent(spotifyUrl)}`,
+        { headers: { "Sparky-Api-Key": "SPARKY-3a3994", "Accept": "application/json" } }
+      );
+      const data = response.data;
+      if (!data.success || !data.result || !data.result[0]) {
+        socket.emit("ndn spotify error", "Failed to fetch track");
+        return;
+      }
+      const track = data.result[0];
+      const payload = {
+        title:     track.title,
+        audio:     track.url,
+        thumbnail: track.thumbnail,
+        startTime: Date.now()
+      };
+      roomSpotify.set(roomId, payload);
+      io.to(`room_${roomId}`).emit("ndn spotify play", payload);
+      console.log(`🎵 Spotify track "${track.title}" started in room ${roomId} by ${username}`);
+    } catch (err) {
+      console.error("NDN Spotify error:", err.message);
+      socket.emit("ndn spotify error", "API error: " + err.message);
+    }
+  });
+
+  socket.on("ndn spotify stop", () => {
+    if (!isAdmin(socket, username)) return;
+    roomSpotify.delete(roomId);
+    io.to(`room_${roomId}`).emit("ndn spotify stopped");
+  });
+
   socket.on("ndn list", async () => {
     if (!isAdmin(socket, username)) return;
     try {
@@ -435,7 +505,6 @@ socket.on("send image", (data) => {
         "SELECT room_id, user_1_id, user_2_id FROM rooms WHERE user_1_id=$1 OR user_2_id=$1",
         [targetId]
       );
-
       if (kickedRoomRes.rows.length) {
         const kickedRoom   = kickedRoomRes.rows[0];
         const kickedRoomId = kickedRoom.room_id;
@@ -487,7 +556,6 @@ socket.on("send image", (data) => {
           });
         }
       });
-
       await pool.query("DELETE FROM rooms WHERE room_id=$1", [nukeRoomId]);
       if (user1) await pool.query("DELETE FROM users WHERE user_id=$1", [user1]);
       if (user2) await pool.query("DELETE FROM users WHERE user_id=$1", [user2]);
@@ -498,21 +566,10 @@ socket.on("send image", (data) => {
     }
   });
 
-  // ── NDN admin: add user ───────────────────────────────────────────────────
-  // Logic:
-  //   - If room_code given AND that room exists AND has user_1 AND no user_2
-  //       → join that room as user_2  ✅
-  //   - If room_code given AND that room exists AND already has user_2 (full)
-  //       → reject with error
-  //   - If room_code given AND that room does NOT exist
-  //       → create a new room with that exact code and the new user as user_1
-  //   - If no room_code given
-  //       → generate a fresh code and create a new room with user as user_1
   socket.on("ndn add", async (data) => {
     if (!isAdmin(socket, username)) return;
     const { username: newUser, password, room_code } = data;
     if (!newUser || !password) return;
-
     try {
       const hash    = await bcrypt.hash(password, 10);
       const userRes = await pool.query(
@@ -521,29 +578,24 @@ socket.on("send image", (data) => {
       );
       const user      = userRes.rows[0];
       let   newRoomId = null;
-
       if (room_code) {
         const existingRoom = await pool.query(
           "SELECT * FROM rooms WHERE room_code=$1",
           [room_code]
         );
-
         if (existingRoom.rows.length) {
           const room = existingRoom.rows[0];
-
           if (room.user_2_id) {
             await pool.query("DELETE FROM users WHERE user_id=$1", [user.user_id]);
             socket.emit("ndn add result", { error: `Room ${room_code} is already full` });
             return;
           }
-
           newRoomId = room.room_id;
           await pool.query(
             "UPDATE rooms SET user_2_id=$1, locked=TRUE WHERE room_id=$2",
             [user.user_id, newRoomId]
           );
           console.log(`✅ User ${newUser} joined existing room ${room_code} as user_2`);
-
         } else {
           const newRoom = await pool.query(
             "INSERT INTO rooms (user_1_id, room_code) VALUES ($1, $2) RETURNING *",
@@ -552,7 +604,6 @@ socket.on("send image", (data) => {
           newRoomId = newRoom.rows[0].room_id;
           console.log(`✅ User ${newUser} created new room with code ${room_code}`);
         }
-
       } else {
         const code    = await generateRoomCode();
         const newRoom = await pool.query(
@@ -562,7 +613,6 @@ socket.on("send image", (data) => {
         newRoomId = newRoom.rows[0].room_id;
         console.log(`✅ User ${newUser} created room with auto-code ${code}`);
       }
-
       socket.emit("ndn add result", {
         user_id:   user.user_id,
         username:  user.username,
@@ -570,7 +620,6 @@ socket.on("send image", (data) => {
         room_code: room_code || null
       });
       console.log(`✅ User ${newUser} added by ${username}`);
-
     } catch (err) {
       console.error("ndn add error:", err);
       socket.emit("ndn add result", { error: err.message });
@@ -603,6 +652,7 @@ socket.on("send image", (data) => {
   socket.on("stop typing",     () => socket.to(`room_${roomId}`).emit("stop typing", username));
   socket.on("start recording", () => socket.to(`room_${roomId}`).emit("start recording", username));
   socket.on("stop recording",  () => socket.to(`room_${roomId}`).emit("stop recording", username));
+
   socket.on("disconnect", async () => {
     console.log(`User disconnected: ${username}`);
     const sockSet = userSockets.get(userId);
@@ -616,28 +666,25 @@ socket.on("send image", (data) => {
     }
   });
 });
+
 app.post("/dev-admin", (req, res) => {
   const { key, token } = req.body;
-
   if (key !== process.env.DEV_ADMIN_KEY) {
     return res.status(403).json({ error: "Invalid key" });
   }
-
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
+    const decoded  = jwt.verify(token, process.env.JWT_SECRET);
     const devToken = jwt.sign(
-      {
-        user_id: decoded.user_id, // ✅ KEEP SAME USER
-        dev: true
-      },
-      process.env.JWT_SECRET,
+      { user_id: decoded.user_id, dev: true },
+      process.env.JWT_SECRET
     );
-
     res.json({ devToken });
   } catch {
     res.status(401).json({ error: "Invalid token" });
   }
-});app.get("/ping", (_, res) => res.send("Server is alive ✅"));
+});
+
+app.get("/ping", (_, res) => res.send("Server is alive ✅"));
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
