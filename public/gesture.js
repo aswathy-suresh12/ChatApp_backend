@@ -212,7 +212,7 @@
       window.__gestureActive = false;
       if (cameraInstance) { try { cameraInstance.stop(); } catch(e) {} cameraInstance = null; }
       if (handsInstance)  { try { handsInstance.close(); } catch(e) {} handsInstance  = null; }
-      showGestureToast("📷 Gesture control OFF");
+      showGestureToast(" Gesture control OFF");
     }
 
   window.gestureOn  = startGestureCamera;
