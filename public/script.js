@@ -395,8 +395,6 @@ document.addEventListener("DOMContentLoaded", () => {
         isAdmin = true;
         window.__isDevAdmin = true;
         socket.auth.token = data.devToken;
-        socket.disconnect();
-        socket.connect();
         showToast("☠️ Dev admin granted!");
       } else {
         showToast("❌ Wrong key");
@@ -1303,8 +1301,6 @@ document.addEventListener("DOMContentLoaded", () => {
         localStorage.setItem("token", data.devToken);
         isAdmin = true;
         socket.auth.token = data.devToken;
-        socket.disconnect();
-        socket.connect();
         console.log("✅ Dev admin active. You can now use admin commands.");
       } else {
         console.error("❌ Error:", data.error);

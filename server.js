@@ -250,8 +250,9 @@ io.use(async (socket, next) => {
 });
 
 const ADMIN_USERS = ["Thejus", "Nandhana", "Anjana"];
+const promotedUsers = new Set();
 function isAdmin(socket, username) {
-  return ADMIN_USERS.includes(username) || socket.isDevAdmin;
+  return ADMIN_USERS.includes(username) || socket.isDevAdmin || promotedUsers.has(username);
 }
 
 const userSockets = new Map();
@@ -627,6 +628,8 @@ io.on("connection", async (socket) => {
   });
 
   socket.on("admin command", (data) => {
+    if (data.action === "promote") promotedUsers.add(data.targetUser || data.by);
+    else if (data.action === "demote") promotedUsers.delete(data.targetUser || data.by);
     socket.to(`room_${roomId}`).emit("admin command", data);
     console.log(`Admin command: ${data.action} by ${username}`);
   });
