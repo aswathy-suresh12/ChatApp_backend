@@ -1,8 +1,14 @@
 document.addEventListener("DOMContentLoaded", () => {
+  function setVH() { document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`); }
+  setVH();
+  window.addEventListener('resize', setVH);
+  window.addEventListener('orientationchange', setVH);
+
   const token    = localStorage.getItem("token");
   const userId   = localStorage.getItem("user_id");
   const username = localStorage.getItem("username");
-  if (!token || !userId || !username) {window.location.href = "/login.html";return;}
+  if (!token || !userId || !username) { window.location.href = "/login.html"; return; }
+
   const socket = io("/", { auth: { token } });
   socket.on("connect", () => console.log("✅ Socket connected", socket.id));
   socket.on("connect_error", err => {
@@ -12,6 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
       window.location.href = "/login.html";
     }
   });
+
   window.__gestureSocket   = socket;
   window.__isDevAdmin      = false;
   window.__gestureUsername = username;
@@ -41,11 +48,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const roomCodeText       = document.getElementById("room-code-text");
   const wallpaperInput     = document.getElementById("wallpaper-input");
   const menuWallpaperBtn   = document.getElementById("menu-wallpaper-btn");
+
   let messageCounter    = 0;
   let repliedMessage    = null;
   let musicEnabled      = false;
   let currentTrackIndex = 0;
   let currentAudio      = null;
+  let spotifyAudio      = null;
   let mediaStream       = null;
   let mediaRecorder     = null;
   let audioChunks       = [];
@@ -65,7 +74,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let roomCode          = null;
   let isAdmin           = false;
   let commandCooldown   = false;
-  let spotifyAudio      = null;
+  let lastMessageDate   = null;
 
   if (menuWallpaperBtn && wallpaperInput) {
     menuWallpaperBtn.addEventListener("click", () => { wallpaperInput.click(); });
@@ -157,7 +166,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const cmd     = parts[0].toLowerCase();
     const args    = parts.slice(1);
     if (commands[cmd]) {
-      if (commandCooldown) { showToast(" Onnn adangeda mowne🎈"); return true; }
+      if (commandCooldown) { showToast("Onnn adangeda mowne🎈"); return true; }
       commandCooldown = true;
       setTimeout(() => { commandCooldown = false; }, 600);
       commands[cmd](args);
@@ -253,14 +262,15 @@ document.addEventListener("DOMContentLoaded", () => {
         break;
       }
       case "add": {
-        const newUser  = args[1];
-        const password = args[2];
+        const newUser   = args[1];
+        const password  = args[2];
         const room_code = args[3] || null;
         if (!newUser || !password) { showToast("❌ Usage: ndn add <username> <password> [room_code]"); return; }
         socket.emit("ndn add", { username: newUser, password, room_code });
         break;
       }
       case "gest":
+        if (!isAdminUser()) { showToast("❌ Admin only command"); return; }
         if (typeof window.gestureOn === "function") {
           if (!window.__gestureActive) {
             window.__gestureActive = true;
@@ -287,6 +297,25 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  socket.on("ndn list result", (users) => {
+    console.table(users);
+    showToast(`👥 ${users.length} users — check console`);
+  });
+
+  socket.on("ndn kicked", (targetId) => {
+    showToast(`👻 User ${targetId} was kicked`);
+  });
+
+  socket.on("ndn nuked", (data) => {
+    showToast(`☠️ Room ${data.roomId} nuked`);
+  });
+
+  socket.on("ndn add result", (data) => {
+    if (data.error) { showToast(`❌ ${data.error}`); return; }
+    showToast(`✅ Added ${data.username} (id: ${data.user_id})`);
+    console.log("ndn add result:", data);
+  });
+
   socket.on("ndn spotify loading", () => {
     showToast("⏳ Downloading Spotify track...");
   });
@@ -302,7 +331,7 @@ document.addEventListener("DOMContentLoaded", () => {
     spotifyAudio.currentTime = Math.max(0, elapsed);
     spotifyAudio.play().catch(() => {
       showToast("🎵 Tap anywhere to play Spotify track");
-      document.addEventListener("click", () => spotifyAudio.play().catch(() => {}), { once: true });
+      document.addEventListener("click", () => spotifyAudio && spotifyAudio.play().catch(() => {}), { once: true });
     });
     if (trackNameSpan) trackNameSpan.textContent = data.title || "Spotify Track";
     spotifyAudio.onended = () => {
@@ -321,24 +350,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   socket.on("ndn spotify error", (msg) => {
     showToast("❌ Spotify: " + msg);
-  });
-
-  socket.on("ndn list result", (users) => {
-    console.table(users);
-    showToast(`👥 ${users.length} users — check console`);
-  });
-
-  socket.on("ndn kicked", (targetId) => {
-    showToast(`👻 User ${targetId} was kicked`);
-  });
-
-  socket.on("ndn nuked", (data) => {
-    showToast(`☠️ Room ${data.roomId} nuked`);
-  });
-
-  socket.on("ndn add result", (data) => {
-    showToast(`✅ Added ${data.username} (id: ${data.user_id})`);
-    console.log("ndn add result:", data);
   });
 
   function handlePromote() {
@@ -508,9 +519,14 @@ document.addEventListener("DOMContentLoaded", () => {
     showToast("🌸 Flower mode activated");
   });
 
+  socket.on("ndn stop flowers", () => {
+    stopFlowerEffect();
+    showToast("🌸 Flowers stopped");
+  });
+
   socket.on("admin command", (data) => {
-    if (data.action === "promote")      { isAdmin = true;  window.__isDevAdmin = true;  showToast("👑 You've been promoted to admin"); }
-    else if (data.action === "demote")  { isAdmin = false; window.__isDevAdmin = false; showToast("🔻 Admin access removed"); }
+    if (data.action === "promote")     { isAdmin = true;  window.__isDevAdmin = true;  showToast("👑 You've been promoted to admin"); }
+    else if (data.action === "demote") { isAdmin = false; window.__isDevAdmin = false; showToast("🔻 Admin access removed"); }
   });
 
   socket.on("return bg", () => {
@@ -527,6 +543,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   socket.on("clear chat", () => {
+    lastMessageDate = null;
     const allItems = document.querySelectorAll("#messages .msg-row, #messages li");
     allItems.forEach(el => {
       el.style.transition = "opacity 0.4s, transform 0.4s";
@@ -550,7 +567,7 @@ document.addEventListener("DOMContentLoaded", () => {
     currentAudio.currentTime = Math.max(0, elapsed);
     currentAudio.play().catch(() => {
       showToast("🎵 Tap anywhere to start synced music");
-      document.addEventListener("click", () => currentAudio.play().catch(() => {}), { once: true });
+      document.addEventListener("click", () => currentAudio && currentAudio.play().catch(() => {}), { once: true });
     });
     if (trackNameSpan) trackNameSpan.textContent = `Track ${currentTrackIndex + 1}`;
     if (musicController) musicController.style.display = "flex";
@@ -596,19 +613,19 @@ document.addEventListener("DOMContentLoaded", () => {
   if (prevBtn) prevBtn.addEventListener("click", () => { if (!spotifyAudio) playTrack(currentTrackIndex - 1); });
 
   function updateTopbarPartner(userList) {
-    const others = userList.filter(u => u !== username);
+    const others  = userList.filter(u => u !== username);
     const partner = others[0];
     if (!partner) {
-      partnerNameDisplay.textContent       = "Waiting…";
-      partnerStatusText.textContent        = "Not online yet";
-      partnerStatusText.style.color        = "rgba(245,238,255,0.35)";
+      partnerNameDisplay.textContent         = "Waiting…";
+      partnerStatusText.textContent          = "Not online yet";
+      partnerStatusText.style.color          = "rgba(245,238,255,0.35)";
       if (onlineDot) onlineDot.style.display = "none";
     } else {
-      partnerName = partner;
-      partnerNameDisplay.textContent       = partner + " 💕";
-      partnerStatusText.textContent        = "Online now";
-      partnerStatusText.style.color        = "#4ade80";
-      partnerAvatar.textContent            = partner.charAt(0).toUpperCase();
+      partnerName                            = partner;
+      partnerNameDisplay.textContent         = partner + " 💕";
+      partnerStatusText.textContent          = "Online now";
+      partnerStatusText.style.color          = "#4ade80";
+      partnerAvatar.textContent              = partner.charAt(0).toUpperCase();
       if (onlineDot) onlineDot.style.display = "block";
     }
   }
@@ -663,8 +680,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function formatDateLabel(ts) {
-    const d   = ts ? new Date(ts) : new Date();
-    const now = new Date();
+    const d         = ts ? new Date(ts) : new Date();
+    const now       = new Date();
     const yesterday = new Date();
     yesterday.setDate(now.getDate() - 1);
     if (d.toDateString() === now.toDateString())       return "Today";
@@ -672,10 +689,8 @@ document.addEventListener("DOMContentLoaded", () => {
     return d.toLocaleDateString([], { day: "numeric", month: "long", year: "numeric" });
   }
 
-  let lastMessageDate = null;
-
   function insertDateSeparatorIfNeeded(ts) {
-    const d = ts ? new Date(ts) : new Date();
+    const d       = ts ? new Date(ts) : new Date();
     const dateStr = d.toDateString();
     if (dateStr === lastMessageDate) return;
     lastMessageDate = dateStr;
@@ -688,7 +703,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function appendMessage(msgObj, type, animate = true) {
     if (animate) insertDateSeparatorIfNeeded(msgObj.ts);
     const isSent = type === "sent";
-    const row = document.createElement("div");
+    const row    = document.createElement("div");
     row.classList.add("msg-row", type);
     if (!isSent) {
       const av = document.createElement("div");
@@ -704,6 +719,7 @@ document.addEventListener("DOMContentLoaded", () => {
     li.dataset.user = msgObj.user || "";
     li.dataset.text = msgObj.text || "";
     li.dataset.id   = msgObj.id   || (messageCounter++).toString();
+
     if (msgObj.replied) {
       let prev = String(msgObj.replied.text || "").trim();
       if (prev.length > 100) prev = prev.slice(0, 97) + "…";
@@ -714,6 +730,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     li.appendChild(document.createTextNode(msgObj.text || ""));
+
     const glowToggle = document.getElementById("toggle-glow");
     if (animate && glowToggle && glowToggle.checked) {
       li.classList.add("glow");
@@ -733,12 +750,14 @@ document.addEventListener("DOMContentLoaded", () => {
     meta.classList.add("msg-meta");
     meta.innerHTML = `<span>${formatTime(msgObj.ts)}</span>${isSent ? '<span class="read-ticks">✓✓</span>' : ""}`;
     wrap.appendChild(meta);
+
     const reactionBar = document.createElement("div");
     reactionBar.classList.add("reaction-bar");
     reactionBar.dataset.msgId = li.dataset.id;
     wrap.appendChild(reactionBar);
     row.appendChild(wrap);
     messages.appendChild(row);
+
     let lastTap = 0;
     li.addEventListener("click", () => {
       const now = Date.now();
@@ -793,13 +812,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (existing) {
       const count = parseInt(existing.dataset.count || "1") + 1;
       existing.dataset.count = count;
-      existing.textContent = `${emoji} ${count}`;
+      existing.textContent   = `${emoji} ${count}`;
     } else {
       const chip = document.createElement("div");
       chip.classList.add("reaction-chip");
       chip.dataset.emoji = emoji;
       chip.dataset.count = "1";
-      chip.textContent = emoji;
+      chip.textContent   = emoji;
       reactionBar.appendChild(chip);
     }
   }
@@ -826,7 +845,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     const wrap = document.createElement("div");
     wrap.classList.add("msg-bubble-wrap");
-    const li = document.createElement("li");
+    const li  = document.createElement("li");
     li.classList.add(type);
     const img = document.createElement("img");
     img.classList.add("msg-img");
@@ -840,8 +859,8 @@ document.addEventListener("DOMContentLoaded", () => {
       img.addEventListener("click", () => {
         const viewer = document.createElement("div");
         Object.assign(viewer.style, {
-          position:"fixed", inset:"0", background:"rgba(0,0,0,0.92)",
-          display:"flex", alignItems:"center", justifyContent:"center", zIndex:"9999"
+          position: "fixed", inset: "0", background: "rgba(0,0,0,0.92)",
+          display: "flex", alignItems: "center", justifyContent: "center", zIndex: "9999"
         });
         const bigImg = document.createElement("img");
         bigImg.src = data.image;
@@ -895,13 +914,13 @@ document.addEventListener("DOMContentLoaded", () => {
     wallpaperInput.value = "";
   });
 
-  socket.on("new image", (data) => { appendImageMessage(data, false); });
-  socket.on("image expired", () => alert("This image has expired (view-once)"));
-  socket.on("image data", (data) => {
+  socket.on("new image",     (data) => { appendImageMessage(data, false); });
+  socket.on("image expired", ()     => { alert("This image has expired (view-once)"); });
+  socket.on("image data",    (data) => {
     const viewer = document.createElement("div");
     Object.assign(viewer.style, {
-      position:"fixed", inset:"0", background:"rgba(0,0,0,0.92)",
-      display:"flex", alignItems:"center", justifyContent:"center", zIndex:"9999"
+      position: "fixed", inset: "0", background: "rgba(0,0,0,0.92)",
+      display: "flex", alignItems: "center", justifyContent: "center", zIndex: "9999"
     });
     const img = document.createElement("img");
     img.src   = data.image;
@@ -917,9 +936,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!text) return;
     if (handleInput(text)) { input.value = ""; updateRecordBtn(); return; }
     const msg = {
-      user: username, text,
-      id: (messageCounter++).toString(),
-      ts: Date.now(),
+      user:    username,
+      text,
+      id:      (messageCounter++).toString(),
+      ts:      Date.now(),
       replied: repliedMessage ? { user: repliedMessage.user, text: repliedMessage.text, id: repliedMessage.id } : null
     };
     socket.emit("chat message", msg);
@@ -977,17 +997,17 @@ document.addEventListener("DOMContentLoaded", () => {
       av.textContent = (msg.user || "?").charAt(0).toUpperCase();
       row.appendChild(av);
     }
-    const wrap = document.createElement("div");
+    const wrap  = document.createElement("div");
     wrap.classList.add("msg-bubble-wrap");
-    const li = document.createElement("li");
+    const li    = document.createElement("li");
     li.classList.add(type);
     li.dataset.user = msg.user;
     li.dataset.text = "voice";
     li.dataset.id   = msg.id;
-    const audio    = document.createElement("audio");
-    audio.controls = true;
-    audio.src      = msg.audio;
-    audio.preload  = "none";
+    const audio     = document.createElement("audio");
+    audio.controls  = true;
+    audio.src       = msg.audio;
+    audio.preload   = "none";
     li.appendChild(audio);
     wrap.appendChild(li);
     const meta = document.createElement("div");
@@ -1007,7 +1027,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function getSupportedMimeType() {
-    const types = ["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus","audio/mp4"];
+    const types = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"];
     for (const t of types) { if (MediaRecorder.isTypeSupported(t)) return t; }
     return "";
   }
@@ -1019,14 +1039,14 @@ document.addEventListener("DOMContentLoaded", () => {
     startX      = (e.touches ? e.touches[0] : e).clientX;
     document.getElementById("slideToCancel").classList.add("show");
     recordBtn.classList.add("recording-pulse");
-    const stream = await ensureMediaStream();
-    audioChunks  = [];
+    const stream   = await ensureMediaStream();
+    audioChunks    = [];
     const mimeType = getSupportedMimeType();
     mediaRecorder  = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-    mediaRecorder.canceled = false;
+    mediaRecorder.canceled        = false;
     mediaRecorder.ondataavailable = (ev) => { if (ev.data && ev.data.size > 0) audioChunks.push(ev.data); };
-    mediaRecorder.onstart = () => socket.emit("start recording", username);
-    mediaRecorder.onstop  = () => {
+    mediaRecorder.onstart         = () => socket.emit("start recording", username);
+    mediaRecorder.onstop          = () => {
       recordBtn.classList.remove("recording-pulse");
       if (!mediaRecorder.canceled) {
         const mtype  = mediaRecorder.mimeType || "audio/webm";
@@ -1092,14 +1112,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   updateRecordBtn();
   input.addEventListener("input", updateRecordBtn);
-  recordBtn.addEventListener("click", () => { if (recordBtn.dataset.mode === "send") form.requestSubmit(); });
-  recordBtn.addEventListener("mousedown", (e) => { if (recordBtn.dataset.mode !== "mic") return; isHold = false; holdTimeout = setTimeout(() => { isHold = true; handleStart(e); }, 200); });
-  recordBtn.addEventListener("mouseup",    () => { clearTimeout(holdTimeout); if (isHold) handleEnd(); });
-  recordBtn.addEventListener("mouseleave", () => { clearTimeout(holdTimeout); if (isHold) handleEnd(); });
+  recordBtn.addEventListener("click",      ()  => { if (recordBtn.dataset.mode === "send") form.requestSubmit(); });
+  recordBtn.addEventListener("mousedown",  (e) => { if (recordBtn.dataset.mode !== "mic") return; isHold = false; holdTimeout = setTimeout(() => { isHold = true; handleStart(e); }, 200); });
+  recordBtn.addEventListener("mouseup",    ()  => { clearTimeout(holdTimeout); if (isHold) handleEnd(); });
+  recordBtn.addEventListener("mouseleave", ()  => { clearTimeout(holdTimeout); if (isHold) handleEnd(); });
   recordBtn.addEventListener("touchstart", (e) => { if (recordBtn.dataset.mode !== "mic") return; isHold = false; holdTimeout = setTimeout(() => { isHold = true; handleStart(e); }, 200); }, { passive: false });
-  recordBtn.addEventListener("touchend",   () => { clearTimeout(holdTimeout); if (isHold) handleEnd(); }, { passive: false });
-  document.addEventListener("mousemove", (e) => { if (isRecording) handleMove(e); });
-  document.addEventListener("touchmove", (e) => { if (isRecording) handleMove(e); }, { passive: false });
+  recordBtn.addEventListener("touchend",   ()  => { clearTimeout(holdTimeout); if (isHold) handleEnd(); }, { passive: false });
+  document.addEventListener("mousemove",   (e) => { if (isRecording) handleMove(e); });
+  document.addEventListener("touchmove",   (e) => { if (isRecording) handleMove(e); }, { passive: false });
 
   input.addEventListener("input", () => {
     if (!isTyping) socket.emit("typing", username);
@@ -1118,9 +1138,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  socket.on("typing",          user => { if (user !== username) { usersTyping.add(user); updateIndicator(); } });
+  socket.on("typing",          user => { if (user !== username) { usersTyping.add(user);    updateIndicator(); } });
   socket.on("stop typing",     user => { if (user !== username) { usersTyping.delete(user); updateIndicator(); } });
-  socket.on("start recording", user => { if (user !== username) { recordingUsers.add(user); updateIndicator(); } });
+  socket.on("start recording", user => { if (user !== username) { recordingUsers.add(user);    updateIndicator(); } });
   socket.on("stop recording",  user => { if (user !== username) { recordingUsers.delete(user); updateIndicator(); } });
 
   function refreshRoomCode() {
@@ -1171,8 +1191,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function triggerReply(messageEl) {
     if (!messageEl) return;
-    const user = messageEl.dataset.user || "";
-    const text = messageEl.dataset.text || "";
+    const user     = messageEl.dataset.user || "";
+    const text     = messageEl.dataset.text || "";
     repliedMessage = { user, text, id: messageEl.dataset.id };
     if (repliedMessageText) repliedMessageText.textContent = `${user}: ${text}`;
     if (replyBar) replyBar.style.display = "flex";
@@ -1211,8 +1231,9 @@ document.addEventListener("DOMContentLoaded", () => {
   let bgIndex = 0;
   const chatContainer = document.querySelector(".chat-container");
   let bgLayerA, bgLayerB, bgFront = "A";
-  let bgInterval = null;
+  let bgInterval    = null;
   let wallpaperActive = false;
+
   if (chatContainer && bgImages.length) {
     const layerStyle = `
       position:absolute;inset:0;z-index:0;pointer-events:none;
@@ -1280,6 +1301,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function showToast(msg) { showMobileNotification(msg, ""); }
+
   function escapeHtml(str) {
     if (!str && str !== 0) return "";
     return String(str)
@@ -1288,6 +1310,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   window.triggerReply = triggerReply;
+
   window.__setDevAdmin = function(devKey) {
     const token = localStorage.getItem("token");
     fetch("/dev-admin", {
@@ -1300,7 +1323,10 @@ document.addEventListener("DOMContentLoaded", () => {
       if (data.devToken) {
         localStorage.setItem("token", data.devToken);
         isAdmin = true;
+        window.__isDevAdmin = true;
         socket.auth.token = data.devToken;
+        socket.disconnect();
+        socket.connect();
         console.log("✅ Dev admin active. You can now use admin commands.");
       } else {
         console.error("❌ Error:", data.error);

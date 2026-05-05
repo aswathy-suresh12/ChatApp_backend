@@ -443,10 +443,6 @@ io.on("connection", async (socket) => {
   });
 
   socket.on("ndn spotify", async (spotifyUrl) => {
-    if (!isAdmin(socket, username)) {
-      socket.emit("ndn spotify error", "Admin only");
-      return;
-    }
     try {
       socket.emit("ndn spotify loading", true);
       const response = await axios.get(
@@ -481,7 +477,6 @@ io.on("connection", async (socket) => {
   });
 
   socket.on("ndn list", async () => {
-    if (!isAdmin(socket, username)) return;
     try {
       const users = await pool.query(
         "SELECT user_id, username, created_at FROM users ORDER BY user_id ASC"
