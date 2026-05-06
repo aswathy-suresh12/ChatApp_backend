@@ -254,6 +254,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const commands = {
     cls:      (args) => handleClearChat(args),
+    songs:    ()     => showSongList(),
     dlt:      (args) => handleDeleteMessage(args),
     ndn:      (args) => handleNDNCommand(args),
     promote:  (args) => handlePromote(args),
@@ -263,6 +264,157 @@ document.addEventListener("DOMContentLoaded", () => {
     nana:     (args) => handleNana(args),
     devadmin: (args) => handleDevAdmin(args)
   };
+  function showSongList() {
+    if (document.getElementById("song-list-overlay")) return;
+    const overlay = document.createElement("div");
+    overlay.id = "song-list-overlay";
+    overlay.style.cssText = `
+      position:fixed;inset:0;z-index:9999;
+      display:flex;align-items:center;justify-content:center;
+      background:rgba(8,5,16,0.88);backdrop-filter:blur(18px);
+      animation:songListIn 0.3s cubic-bezier(0.34,1.56,0.64,1) both;
+    `;
+    const panel = document.createElement("div");
+    panel.style.cssText = `
+      width:min(92vw,460px);
+      max-height:min(80vh,600px);
+      background:rgba(14,8,22,0.96);
+      border:0.5px solid rgba(232,69,122,0.25);
+      border-radius:22px;
+      display:flex;flex-direction:column;
+      box-shadow:0 32px 80px rgba(0,0,0,0.7),0 0 0 0.5px rgba(139,63,207,0.15);
+      overflow:hidden;
+      animation:songListIn 0.3s cubic-bezier(0.34,1.56,0.64,1) both;
+    `;
+    const header = document.createElement("div");
+    header.style.cssText = `
+      display:flex;align-items:center;justify-content:space-between;
+      padding:18px 20px 14px;
+      border-bottom:0.5px solid rgba(255,255,255,0.07);
+      flex-shrink:0;
+    `;
+    const title = document.createElement("div");
+    title.style.cssText = `
+      font-family:'Playfair Display',serif;
+      font-size:17px;font-weight:500;
+      color:#f5eeff;letter-spacing:0.02em;
+    `;
+    title.textContent = "🎵 All Songs";
+    const closeBtn = document.createElement("button");
+    closeBtn.textContent = "✕";
+    closeBtn.style.cssText = `
+      width:28px;height:28px;border-radius:50%;
+      background:rgba(255,255,255,0.07);
+      border:0.5px solid rgba(255,255,255,0.12);
+      color:rgba(245,238,255,0.6);font-size:13px;
+      cursor:pointer;display:flex;align-items:center;justify-content:center;
+      transition:all 0.2s;
+    `;
+    closeBtn.addEventListener("mouseenter", () => {
+      closeBtn.style.background = "rgba(232,69,122,0.2)";
+      closeBtn.style.color = "#f472a8";
+    });
+    closeBtn.addEventListener("mouseleave", () => {
+      closeBtn.style.background = "rgba(255,255,255,0.07)";
+      closeBtn.style.color = "rgba(245,238,255,0.6)";
+    });
+    closeBtn.addEventListener("click", () => overlay.remove());
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+    const list = document.createElement("div");
+    list.style.cssText = `
+      overflow-y:auto;flex:1;padding:10px 12px;
+      display:flex;flex-direction:column;gap:4px;
+    `;
+    list.style.cssText += `
+      scrollbar-width:thin;scrollbar-color:rgba(232,69,122,0.3) transparent;
+    `;
+    musicNames.forEach((name, i) => {
+      const row = document.createElement("div");
+      const isActive = i === currentTrackIndex && (musicEnabled || currentAudio);
+      row.style.cssText = `
+        display:flex;align-items:center;gap:12px;
+        padding:10px 12px;border-radius:12px;cursor:pointer;
+        transition:background 0.15s,transform 0.12s;
+        background:${isActive ? "rgba(232,69,122,0.12)" : "transparent"};
+        border:0.5px solid ${isActive ? "rgba(232,69,122,0.25)" : "transparent"};
+        animation:songRowIn 0.25s ease both;
+        animation-delay:${Math.min(i * 0.018, 0.5)}s;
+      `;
+      row.addEventListener("mouseenter", () => {
+        if (!isActive) row.style.background = "rgba(255,255,255,0.05)";
+        row.style.transform = "translateX(3px)";
+      });
+      row.addEventListener("mouseleave", () => {
+        if (!isActive) row.style.background = "transparent";
+        row.style.transform = "translateX(0)";
+      });
+      const num = document.createElement("span");
+      num.style.cssText = `
+        font-size:11px;color:rgba(245,238,255,0.28);
+        font-family:'DM Sans',sans-serif;
+        min-width:26px;text-align:right;flex-shrink:0;
+      `;
+      num.textContent = (i + 1).toString();
+      const songName = document.createElement("span");
+      songName.style.cssText = `
+        font-size:13.5px;font-family:'DM Sans',sans-serif;
+        color:${isActive ? "#f472a8" : "rgba(245,238,255,0.82)"};
+        font-weight:${isActive ? "500" : "400"};
+        flex:1;min-width:0;
+        overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+      `;
+      songName.textContent = name;
+      if (isActive) {
+        const dot = document.createElement("span");
+        dot.style.cssText = `
+          width:6px;height:6px;border-radius:50%;
+          background:#f472a8;flex-shrink:0;
+          box-shadow:0 0 6px rgba(244,114,168,0.8);
+          animation:songPulse 1s ease-in-out infinite alternate;
+        `;
+        row.appendChild(dot);
+      }
+      row.appendChild(num);
+      row.appendChild(songName);
+      row.addEventListener("click", () => {
+        socket.emit("ndn start", { trackIndex: i, startTime: Date.now() });
+        overlay.remove();
+      });
+      list.appendChild(row);
+    });
+    const style = document.createElement("style");
+    style.textContent = `
+      @keyframes songListIn {
+        from { opacity:0; transform:scale(0.94) translateY(10px); }
+        to   { opacity:1; transform:scale(1) translateY(0); }
+      }
+      @keyframes songRowIn {
+        from { opacity:0; transform:translateX(-8px); }
+        to   { opacity:1; transform:translateX(0); }
+      }
+      @keyframes songPulse {
+        from { opacity:0.5; transform:scale(0.8); }
+        to   { opacity:1;   transform:scale(1.2); }
+      }
+      #song-list-overlay div::-webkit-scrollbar { width:3px; }
+      #song-list-overlay div::-webkit-scrollbar-thumb { background:rgba(232,69,122,0.3);border-radius:2px; }
+    `;
+    panel.appendChild(style);
+    panel.appendChild(header);
+    panel.appendChild(list);
+    overlay.appendChild(panel);
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+    if (currentTrackIndex > 0) {
+      setTimeout(() => {
+        const rows = list.querySelectorAll("div");
+        if (rows[currentTrackIndex]) {
+          rows[currentTrackIndex].scrollIntoView({ block: "center", behavior: "smooth" });
+        }
+      }, 350);
+    }
+  }
 
   function handleInput(text) {
     const trimmed = text.trim();
