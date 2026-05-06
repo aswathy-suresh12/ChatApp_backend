@@ -144,7 +144,15 @@ document.addEventListener("DOMContentLoaded", () => {
     "https://files.catbox.moe/prw3g6.mp4",
     "https://files.catbox.moe/j2ncnz.mp4",
     "https://files.catbox.moe/o1gvpb.mp4",
-    "https://files.catbox.moe/74pf42.mp4"
+    "https://files.catbox.moe/74pf42.mp4",
+    "https://files.catbox.moe/miu1wm.mp4",
+    "https://files.catbox.moe/8p1p7e.mp4",
+    "https://files.catbox.moe/8minwk.mp4",
+    "https://files.catbox.moe/up919o.mp4",
+    "https://files.catbox.moe/2eq4z2.mp4",
+    "https://files.catbox.moe/pfh2tu.mp4",
+    "https://files.catbox.moe/mled5i.mp4",
+    "https://files.catbox.moe/rg3hmw.mp4"
   ];
 
   const commands = {
