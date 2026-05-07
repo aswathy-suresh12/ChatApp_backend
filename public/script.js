@@ -165,7 +165,20 @@ document.addEventListener("DOMContentLoaded", () => {
     "https://files.catbox.moe/j96q9r.mp3",
     "https://files.catbox.moe/6uazn2.mp3",
     "https://files.catbox.moe/xbn5rc.mp3",
-    "https://files.catbox.moe/bwgkz3.mp3"
+    "https://files.catbox.moe/bwgkz3.mp3",
+    "https://files.catbox.moe/0pov7j.m4a",
+    "https://files.catbox.moe/uikxrj.mp3",
+    "https://files.catbox.moe/2jsvzh.mp3",
+    "https://files.catbox.moe/jdhmis.mp3",
+    "https://files.catbox.moe/cbhyeb.mp3",
+    "https://files.catbox.moe/qms8t9.mp3",
+    "https://files.catbox.moe/tvxw3q.mp3",
+    "https://files.catbox.moe/2c9tgl.mp3",
+    "https://files.catbox.moe/vt2oy6.mp3",
+    "https://files.catbox.moe/qtest1.mp3",
+    "https://files.catbox.moe/pn01k8.mp3",
+    "https://files.catbox.moe/5aoir8.mp3",
+    "https://files.catbox.moe/dlyocz.mp3"
   ];
 
   const musicNames = [
@@ -249,7 +262,20 @@ document.addEventListener("DOMContentLoaded", () => {
   "Veera Raja Veera",
   "Ole melody",
   "Kannil Pettole",
-  "Thuppathu"
+  "Thuppathu",
+  "Sundari Onnu Parayu X ",
+  "KALYANI",
+  "Mohajalakam Arya 2",
+  "Chendumallika Arya 2",
+  "Mr Perfect Arya 2",
+  "Ennennenum unarave (krishna)",
+  "Chembaneerpoove ne (Krishna)",
+  "Feelings Pushpa 2",
+  "Vannathi Puzhayude",
+  "Puthumazha Sarvam maya",
+  "Kannonjal",
+  "Mandharapoove",
+  "Mehabooba KGF 2"
 ];
 
   const commands = {
