@@ -8,14 +8,11 @@ const jwt      = require("jsonwebtoken");
 const { Pool } = require("pg");
 const Groq     = require("groq-sdk");
 const axios    = require("axios");
-const { ElevenLabsClient } = require("elevenlabs");
 const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server, { cors: { origin: "*" } });
 const groq   = new Groq({ apiKey: process.env.GROQ_API_KEY });
-const elevenlabs = new ElevenLabsClient({apiKey: process.env.ELEVENLABS_API_KEY});
 app.use(express.json());
-
 const nanaMemory = {};
 
 app.post("/api/nana", async (req, res) => {
@@ -86,40 +83,38 @@ app.post("/api/spotify", async (req, res) => {
 app.post("/api/tts", async (req, res) => {
   try {
     const { text } = req.body;
-    if (!text) {
-      return res.status(400).json({
-        error: "Text required"
-      });
+    if (!text) return res.status(400).json({ error: "Text required" });
+    if (!process.env.ELEVENLABS_API_KEY) {
+      console.error("ELEVENLABS_API_KEY not set");
+      return res.status(500).json({ error: "TTS not configured" });
     }
-    let audioStream;
-    try {
-      audioStream = await elevenlabs.textToSpeech.convert("EXAVITQu4vr4xnSDxMaL", {
+
+    const response = await axios.post(
+      "https://api.elevenlabs.io/v1/text-to-speech/EXAVITQu4vr4xnSDxMaL",
+      {
         text,
         model_id: "eleven_multilingual_v2",
-        output_format: "mp3_44100_128"
-      });
-    } catch {
-      audioStream = await elevenlabs.generate({
-        voice: "EXAVITQu4vr4xnSDxMaL",
-        text,
-        model_id: "eleven_multilingual_v2"
-      });
-    }
-    const chunks = [];
-    for await (const chunk of audioStream) {
-      chunks.push(chunk);
-    }
-    const audioBuffer = Buffer.concat(chunks);
+        voice_settings: { stability: 0.5, similarity_boost: 0.75 }
+      },
+      {
+        headers: {
+          "xi-api-key": process.env.ELEVENLABS_API_KEY,
+          "Content-Type": "application/json",
+          "Accept": "audio/mpeg"
+        },
+        responseType: "arraybuffer",
+        timeout: 30000
+      }
+    );
+
     res.set({
       "Content-Type": "audio/mpeg",
-      "Content-Length": audioBuffer.length
+      "Content-Length": response.data.byteLength
     });
-    res.send(audioBuffer);
+    res.send(Buffer.from(response.data));
   } catch (err) {
-    console.error("TTS Error:", err);
-    res.status(500).json({
-      error: "TTS failed"
-    });
+    console.error("TTS Error:", err?.response?.data?.toString() || err.message);
+    res.status(500).json({ error: "TTS failed: " + (err?.response?.status || err.message) });
   }
 });
 
