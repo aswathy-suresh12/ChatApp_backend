@@ -178,7 +178,15 @@ document.addEventListener("DOMContentLoaded", () => {
     "https://files.catbox.moe/qtest1.mp3",
     "https://files.catbox.moe/pn01k8.mp3",
     "https://files.catbox.moe/5aoir8.mp3",
-    "https://files.catbox.moe/dlyocz.mp3"
+    "https://files.catbox.moe/dlyocz.mp3",
+    "https://files.catbox.moe/j6bvej.mp3",
+    "https://files.catbox.moe/66yi3k.mp3",
+    "https://files.catbox.moe/n5gxpx.mp3",
+    "https://files.catbox.moe/o9wui1.mp3",
+    "https://files.catbox.moe/edwici.mp3",
+    "https://files.catbox.moe/4u6ur9.mp3",
+    "https://files.catbox.moe/unbn3v.mp3",
+    "https://files.catbox.moe/mu7sso.mp3"
   ];
 
   const musicNames = [
@@ -275,7 +283,15 @@ document.addEventListener("DOMContentLoaded", () => {
   "Puthumazha Sarvam maya",
   "Kannonjal",
   "Mandharapoove",
-  "Mehabooba KGF 2"
+  "Mehabooba KGF 2",
+  "kattuchempakam",
+  "Kaatu mooliyoo",
+  "Minnalvala",
+  "Her",
+  "Jeevamshamayi",
+  "Allimalarkavil",
+  "Vennakallil ninne kothi",
+  "Ullasa gaayike"
 ];
 
   const commands = {
@@ -531,6 +547,27 @@ document.addEventListener("DOMContentLoaded", () => {
       case "spotify-stop":
         socket.emit("ndn spotify stop");
         break;
+      case "tts": {
+        const ttsText = args.slice(1).join(" ");
+        if (!ttsText) { showToast("❌ Usage: ndn tts <text>"); return; }
+        showToast("🔊 Generating...");
+        fetch("/api/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: ttsText })
+        })
+        .then(r => {
+          if (!r.ok) return r.json().then(e => { throw new Error(e.error || r.status); });
+          return r.blob();
+        })
+        .then(blob => {
+          const audio = new Audio(URL.createObjectURL(blob));
+          audio.volume = 0.9;
+          audio.play().catch(() => showToast(" Tap anywhere to play"));
+        })
+        .catch(e => showToast("❌ TTS: " + e.message));
+        break;
+      }
       case "kick": {
         const targetId = parseInt(args[1], 10);
         if (isNaN(targetId)) { showToast("❌ Usage: ndn kick <user_id>"); return; }
@@ -608,6 +645,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (spotifyAudio) { spotifyAudio.pause(); spotifyAudio = null; }
     musicEnabled = false;
     if (musicController) musicController.style.display = "flex";
+    updateMobileMusicBar(data.title || "Spotify Track");
     const elapsed = data.startTime ? (Date.now() - data.startTime) / 1000 : 0;
     spotifyAudio = new Audio(data.audio);
     spotifyAudio.volume = 0.25;
@@ -626,10 +664,11 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   socket.on("ndn spotify stopped", () => {
-    if (spotifyAudio) { spotifyAudio.pause(); spotifyAudio = null; }
-    if (trackNameSpan) trackNameSpan.textContent = "";
-    showToast("⏹ Spotify stopped");
-  });
+      if (spotifyAudio) { spotifyAudio.pause(); spotifyAudio = null; }
+      if (trackNameSpan) trackNameSpan.textContent = "";
+      updateMobileMusicBar(null);
+      showToast("⏹ Spotify stopped");
+    });
 
   socket.on("ndn spotify error", (msg) => {
     showToast("❌ Spotify: " + msg);
@@ -697,7 +736,7 @@ document.addEventListener("DOMContentLoaded", () => {
     .catch(() => showToast("❌ Server error"));
   }
 
-  async function handleNana(args) {
+async function handleNana(args) {
     const text = args.join(" ");
     if (!text) { showToast("💬 Ask Nana something"); return; }
 
@@ -717,9 +756,26 @@ document.addEventListener("DOMContentLoaded", () => {
         body: JSON.stringify({ message: text, username })
       });
       const data = await res.json();
+      const reply = data.reply;
       const tempMsg = appendMessage({ user: "Nana 💕", text: "", id: Date.now().toString() }, "received");
       await new Promise(r => setTimeout(r, 600 + Math.random() * 800));
-      typeMessage(data.reply, tempMsg);
+      typeMessage(reply, tempMsg);
+      try {
+        const ttsRes = await fetch("/api/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: reply })
+        });
+        if (ttsRes.ok) {
+          const audioBlob = await ttsRes.blob();
+          const audioUrl  = URL.createObjectURL(audioBlob);
+          const audio     = new Audio(audioUrl);
+          audio.volume    = 0.8;
+          audio.play().catch(() => {});
+        }
+      } catch (ttsErr) {
+        console.warn("TTS failed silently:", ttsErr);
+      }
     } catch (err) {
       showToast("❌ Nana failed");
     }
@@ -768,10 +824,11 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   socket.on("ndn stop", () => {
-    if (currentAudio) currentAudio.pause();
-    musicEnabled = false;
-    if (musicController) musicController.style.display = "none";
-  });
+      if (currentAudio) currentAudio.pause();
+      musicEnabled = false;
+      if (musicController) musicController.style.display = "none";
+      updateMobileMusicBar(null);
+    });
 
   socket.on("ndn next", (data) => {
     syncPlay((currentTrackIndex + 1) % musicUrls.length, data.startTime);
@@ -840,6 +897,21 @@ document.addEventListener("DOMContentLoaded", () => {
     applyWallpaper(data.wallpaper);
   });
 
+  function updateMobileMusicBar(name) {
+    const bar    = document.getElementById("mobile-music-bar");
+    const ticker = document.getElementById("mobile-track-ticker");
+    if (!bar || !ticker) return;
+    if (!name) {
+      bar.style.display = "none";
+      return;
+    }
+    bar.style.display = "flex";
+    ticker.textContent = name;
+    ticker.style.animation = "none";
+    ticker.offsetHeight;
+    ticker.style.animation = "";
+  }
+
   function syncPlay(trackIndex, startTime) {
     if (spotifyAudio) { spotifyAudio.pause(); spotifyAudio = null; }
     if (currentAudio) currentAudio.pause();
@@ -852,19 +924,23 @@ document.addEventListener("DOMContentLoaded", () => {
       showToast("🎵 Tap anywhere to start synced music");
       document.addEventListener("click", () => currentAudio && currentAudio.play().catch(() => {}), { once: true });
     });
-    if (trackNameSpan) trackNameSpan.textContent = `${currentTrackIndex + 1}. ${musicNames[currentTrackIndex] || "Unknown"}`;
-    if (musicController) musicController.style.display = "flex";
-    currentAudio.onended = () => syncPlay(currentTrackIndex + 1, Date.now());
+  const songLabel = `${currentTrackIndex + 1}. ${musicNames[currentTrackIndex] || "Unknown"}`;
+      if (trackNameSpan) trackNameSpan.textContent = songLabel;
+      updateMobileMusicBar(songLabel);
+      if (musicController) musicController.style.display = "flex";
+      currentAudio.onended = () => syncPlay(currentTrackIndex + 1, Date.now());
   }
 
-  function playTrack(index) {
+function playTrack(index) {
     if (spotifyAudio) { spotifyAudio.pause(); spotifyAudio = null; }
     if (currentAudio) currentAudio.pause();
     currentTrackIndex = ((index % musicUrls.length) + musicUrls.length) % musicUrls.length;
     currentAudio = new Audio(musicUrls[currentTrackIndex]);
     currentAudio.volume = 0.25;
     currentAudio.play().catch(() => {});
-    if (trackNameSpan) trackNameSpan.textContent = `Track ${currentTrackIndex + 1}`;
+    const songLabel = `${currentTrackIndex + 1}. ${musicNames[currentTrackIndex] || "Unknown"}`;
+    if (trackNameSpan) trackNameSpan.textContent = songLabel;
+    updateMobileMusicBar(songLabel);
     currentAudio.onended = () => playTrack(currentTrackIndex + 1);
   }
 
@@ -894,6 +970,16 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   if (nextBtn) nextBtn.addEventListener("click", () => { if (!spotifyAudio) playTrack(currentTrackIndex + 1); });
   if (prevBtn) prevBtn.addEventListener("click", () => { if (!spotifyAudio) playTrack(currentTrackIndex - 1); });
+  const mobilePrev  = document.getElementById("mobile-prev-btn");
+  const mobilePlay  = document.getElementById("mobile-play-pause-btn");
+  const mobileNext  = document.getElementById("mobile-next-btn");
+  if (mobilePrev) mobilePrev.addEventListener("click", () => { if (!spotifyAudio) playTrack(currentTrackIndex - 1); });
+  if (mobileNext) mobileNext.addEventListener("click", () => { if (!spotifyAudio) playTrack(currentTrackIndex + 1); });
+  if (mobilePlay) mobilePlay.addEventListener("click", () => {
+    const active = spotifyAudio || currentAudio;
+    if (!active) { playTrack(currentTrackIndex); return; }
+    active.paused ? active.play() : active.pause();
+  });
 
   function updateTopbarPartner(userList) {
     const others  = userList.filter(u => u !== username);

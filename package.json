@@ -22,6 +22,7 @@
     "dotenv": "^17.2.3",
     "dunder-proto": "^1.0.1",
     "ee-first": "^1.1.1",
+    "elevenlabs": "^1.59.0",
     "encodeurl": "^2.0.0",
     "engine.io": "^6.6.4",
     "engine.io-parser": "^5.2.3",

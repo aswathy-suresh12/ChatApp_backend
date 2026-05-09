@@ -1,7 +1,6 @@
 (function () {
   const COOLDOWN_MS  = 2500;
   const GESTURE_HOLD = 700;
-
   let gestureEnabled  = false;
   let lastGestureTime = 0;
   let holdTimer       = null;
@@ -69,14 +68,10 @@
     }
   }
 
-  // ── Landmark helpers ─────────────────────────────────────────────────────
-
-  // Is fingertip clearly above its PIP knuckle? (higher on screen = lower y)
   function fingerUp(lm, tip, pip) {
     return lm[tip].y < lm[pip].y - 0.035;
   }
 
-  // Is fingertip roughly at or below its PIP? = curled
   function fingerDown(lm, tip, pip) {
     return lm[tip].y >= lm[pip].y - 0.02;
   }
@@ -85,28 +80,22 @@
   function mid(lm)  { return fingerUp(lm, 12, 10); }
   function ring(lm) { return fingerUp(lm, 16, 14); }
   function pink(lm) { return fingerUp(lm, 20, 18); }
-
   function idxDown(lm)  { return fingerDown(lm, 8,  6);  }
   function midDown(lm)  { return fingerDown(lm, 12, 10); }
   function ringDown(lm) { return fingerDown(lm, 16, 14); }
   function pinkDown(lm) { return fingerDown(lm, 20, 18); }
-
-  // Thumb pointing clearly upward — tip well above wrist
   function thumbUp(lm) {
     return lm[4].y < lm[2].y - 0.06;
   }
 
-  // Thumb pointing clearly downward — tip well below wrist
   function thumbDown(lm) {
     return lm[4].y > lm[0].y + 0.03;
   }
 
-  // Thumb sticking out to the side
   function thumbOut(lm) {
     return Math.abs(lm[4].x - lm[2].x) > 0.07;
   }
 
-  // Palm facing camera = wrist below middle MCP
   function palmUp(lm) {
     return lm[0].y > lm[9].y + 0.04;
   }
@@ -118,34 +107,15 @@
     const tDown = thumbDown(lm);
     const tOut  = thumbOut(lm);
     const up    = palmUp(lm);
-
-    // ── call_me: thumb out + pinky up, middle two curled ──
     if (tOut && P && mD && rD && !I) return "call_me";
-
-    // ── thumbs up: all fingers curled, thumb pointing up ──
     if (tUp && iD && mD && rD && pD) return "thumbs_up";
-
-    // ── thumbs down: all fingers curled, thumb pointing down ──
     if (tDown && iD && mD && rD && pD) return "thumbs_down";
-
-    // ── fist: everything curled including thumb ──
     if (!tOut && !tUp && iD && mD && rD && pD) return "fist";
-
-    // ── open palm facing camera ──
     if (I && M && R && P && up)  return "palm_flip";
-
-    // ── stop hand facing away ──
     if (I && M && R && P && !up) return "stop_hand";
-
-    // ── victory: index + middle up, ring + pinky down ──
     if (I && M && rD && pD) return "victory";
-
-    // ── point right: only index up ──
     if (I && mD && rD && pD && !tOut) return "point_right";
-
-    // ── point left: only pinky up ──
     if (P && iD && mD && rD && !tOut) return "point_left";
-
     return null;
   }
 
@@ -181,7 +151,7 @@
     });
     handsInstance.setOptions({
       maxNumHands:            1,
-      modelComplexity:        1,       // bumped to 1 for better accuracy
+      modelComplexity:        1,       
       minDetectionConfidence: 0.7,
       minTrackingConfidence:  0.6
     });

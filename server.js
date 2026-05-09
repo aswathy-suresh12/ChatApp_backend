@@ -8,10 +8,12 @@ const jwt      = require("jsonwebtoken");
 const { Pool } = require("pg");
 const Groq     = require("groq-sdk");
 const axios    = require("axios");
+const { ElevenLabsClient } = require("elevenlabs");
 const app    = express();
 const server = http.createServer(app);
 const io     = new Server(server, { cors: { origin: "*" } });
 const groq   = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const elevenlabs = new ElevenLabsClient({apiKey: process.env.ELEVENLABS_API_KEY});
 app.use(express.json());
 
 const nanaMemory = {};
@@ -78,6 +80,46 @@ app.post("/api/spotify", async (req, res) => {
   } catch (err) {
     console.error("Spotify API error:", err.message);
     res.status(500).json({ error: "Failed to fetch song" });
+  }
+});
+
+app.post("/api/tts", async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text) {
+      return res.status(400).json({
+        error: "Text required"
+      });
+    }
+    let audioStream;
+    try {
+      audioStream = await elevenlabs.textToSpeech.convert("EXAVITQu4vr4xnSDxMaL", {
+        text,
+        model_id: "eleven_multilingual_v2",
+        output_format: "mp3_44100_128"
+      });
+    } catch {
+      audioStream = await elevenlabs.generate({
+        voice: "EXAVITQu4vr4xnSDxMaL",
+        text,
+        model_id: "eleven_multilingual_v2"
+      });
+    }
+    const chunks = [];
+    for await (const chunk of audioStream) {
+      chunks.push(chunk);
+    }
+    const audioBuffer = Buffer.concat(chunks);
+    res.set({
+      "Content-Type": "audio/mpeg",
+      "Content-Length": audioBuffer.length
+    });
+    res.send(audioBuffer);
+  } catch (err) {
+    console.error("TTS Error:", err);
+    res.status(500).json({
+      error: "TTS failed"
+    });
   }
 });
 
